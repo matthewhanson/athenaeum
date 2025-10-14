@@ -1,0 +1,74 @@
+[project]
+name = "athenaeum"
+version = "0.1.0"
+description = "Give your LLM a library - A RAG system with vector search and document indexing"
+authors = [{ name = "Matt Hanson", email = "matt.a.hanson@gmail.com" }]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = "==3.12.*"
+dependencies = [
+  "typer>=0.12", # CLI
+  "llama-index-core>=0.10.0", # Base LlamaIndex framework
+  "llama-index-embeddings-huggingface>=0.1.0", # local embedding model
+  "llama-index-vector-stores-faiss>=0.1.0", # FAISS integration
+  "faiss-cpu>=1.7.4", # FAISS backend (CPU)
+  "torch>=2.0.0", # required for most HuggingFace embeddings
+  "transformers>=4.36", # HF model support
+  "fastapi>=0.108.0", # API framework for MCP server
+  "uvicorn>=0.27.0", # ASGI server for FastAPI
+  "pydantic>=2.5.0", # Data validation
+  "docling>=1.3", # structure-preserving PDF→MD (adjust to latest stable)
+  "pymupdf>=1.24", # fallback engine
+  "pymupdf4llm>=0.0.14", # fallback engine wrapper
+  "unstructured[pdf]>=0.15", # unstructured text extraction
+  "pdfminer-six>=20250506",
+  "pdfplumber>=0.11.7",
+  "pillow-heif>=1.1.1",
+  "unstructured-inference>=1.0.5",
+  "llama-index-llms-openai>=0.6.4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "httpx>=0.27.0",  # For testing FastAPI
+  "pytest-asyncio>=0.23.0",  # For async tests
+  "ruff>=0.6",
+  "mypy>=1.11",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+# optional: to pin uv versioning behavior
+index-url = "https://pypi.org/simple"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "README.md", "LICENSE"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/athenaeum"]
+
+[project.scripts]
+athenaeum = "athenaeum.main_cli:main"
+
+[tool.pytest.ini_options]
+addopts = "-v"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+disallow_untyped_defs = true
