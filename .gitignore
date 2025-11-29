@@ -10,3 +10,15 @@ wheels/
 .venv
 
 .env
+
+# CDK
+cdk.out/
+cdk.context.json
+*.d.ts
+*.js
+
+# Test and temporary files
+.pytest_cache/
+*.pyc
+/index/
+/figures/

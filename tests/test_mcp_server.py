@@ -10,17 +10,19 @@ from athenaeum.mcp_server import app, get_index_dir
 
 
 @pytest.fixture
-def mock_index_dir(tmp_path):
+def mock_index_dir(tmp_path, monkeypatch):
     # Create fake index directory
     index_dir = tmp_path / "index"
     index_dir.mkdir()
     (index_dir / "faiss.index").write_text("dummy")
+    # Set environment variable before app is loaded
+    monkeypatch.setenv("ATHENAEUM_INDEX_DIR", str(index_dir))
     return index_dir
 
 
 @pytest.fixture
-def client():
-    # Create a test client for FastAPI
+def client(mock_index_dir):
+    # Create a test client for FastAPI (with mock index dir set)
     return TestClient(app)
 
 

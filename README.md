@@ -10,6 +10,7 @@ A RAG (Retrieval-Augmented Generation) system built with LlamaIndex and FastAPI 
 - **PDF Preprocessing**: Convert PDFs to Markdown with multiple engines (unstructured, pymupdf, docling)
 - **MCP Server**: HTTP API with clean endpoints for retrieval and chat
 - **CLI Tools**: Convert PDFs, build indices, query, and run the server
+- **AWS Lambda Deployment**: Serverless deployment with CDK, OAuth authentication, and S3 index storage
 - **Well-Tested**: Comprehensive test suite with 12 passing tests
 - **Clean Architecture**: Logical separation between indexing, retrieval, API, and CLI layers
 
@@ -112,6 +113,28 @@ uv run athenaeum serve --index ./index --host 0.0.0.0 --port 8000
 # With auto-reload for development
 uv run athenaeum serve --index ./index --reload
 ```
+
+## AWS Lambda Deployment
+
+Deploy Athenaeum as a serverless Lambda function with OAuth authentication:
+
+```bash
+# Install deployment dependencies
+uv sync --extra deploy
+
+# Configure OAuth (copy example and edit)
+cp cdk.context.json.example cdk.context.json
+
+# Deploy to AWS
+./deploy.sh
+```
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment instructions, including:
+- OAuth configuration (Auth0, Cognito, Okta)
+- Index packaging strategies
+- Cost estimation
+- Connecting to ChatGPT
+- Troubleshooting
 
 ## MCP Server API
 

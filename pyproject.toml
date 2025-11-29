@@ -1,14 +1,14 @@
 [project]
 name = "athenaeum"
 version = "0.1.0"
-description = "Give your LLM a library - A RAG system with vector search and document indexing"
+description = "Give your LLM a library - A markdown-focused RAG system with vector search"
 authors = [{ name = "Matt Hanson", email = "matt.a.hanson@gmail.com" }]
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = "==3.12.*"
 dependencies = [
   "typer>=0.12", # CLI
-  "llama-index-core>=0.10.0", # Base LlamaIndex framework
+  "llama-index-core>=0.10.0", # Base LlamaIndex framework with MarkdownNodeParser
   "llama-index-embeddings-huggingface>=0.1.0", # local embedding model
   "llama-index-vector-stores-faiss>=0.1.0", # FAISS integration
   "faiss-cpu>=1.7.4", # FAISS backend (CPU)
@@ -17,15 +17,7 @@ dependencies = [
   "fastapi>=0.108.0", # API framework for MCP server
   "uvicorn>=0.27.0", # ASGI server for FastAPI
   "pydantic>=2.5.0", # Data validation
-  "docling>=1.3", # structure-preserving PDF→MD (adjust to latest stable)
-  "pymupdf>=1.24", # fallback engine
-  "pymupdf4llm>=0.0.14", # fallback engine wrapper
-  "unstructured[pdf]>=0.15", # unstructured text extraction
-  "pdfminer-six>=20250506",
-  "pdfplumber>=0.11.7",
-  "pillow-heif>=1.1.1",
-  "unstructured-inference>=1.0.5",
-  "llama-index-llms-openai>=0.6.4",
+  "llama-index-llms-openai>=0.6.4", # OpenAI LLM support for retrieval
 ]
 
 [project.optional-dependencies]
@@ -36,6 +28,13 @@ dev = [
   "pytest-asyncio>=0.23.0",  # For async tests
   "ruff>=0.6",
   "mypy>=1.11",
+]
+deploy = [
+  "aws-cdk-lib>=2.100.0",
+  "constructs>=10.0.0",
+  "mangum>=0.17.0",  # ASGI adapter for Lambda
+  "python-jose[cryptography]>=3.3.0",  # JWT/OAuth handling
+  "python-multipart>=0.0.6",  # OAuth form data
 ]
 
 [build-system]

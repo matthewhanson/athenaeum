@@ -13,10 +13,10 @@ from pydantic.warnings import UnsupportedFieldAttributeWarning
 warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
 
 # Import refactored modules
-from athenaeum.indexer import build_index, collect_pdfs, convert_pdfs_to_markdown
+from athenaeum.indexer import build_index
 from athenaeum.retriever import query_index
 
-app = typer.Typer(help="Athenaeum CLI — Give your LLM a library. Build and query local FAISS indexes.")
+app = typer.Typer(help="Athenaeum CLI — Give your LLM a library. Build and query markdown indexes.")
 
 def _pkg_version() -> str:
     try:
@@ -40,64 +40,14 @@ def _root(
         raise typer.Exit()
 
 
-@app.command("convert")
-def cmd_convert(
-    inputs: list[Path] = typer.Argument(..., help="PDF files and/or directories to convert."),
-    out_dir: Path = typer.Option(Path("./md_out"), "--out", "-o", help="Directory for Markdown output."),
-    recursive: bool = typer.Option(True, "--recursive/--no-recursive", help="Recurse when inputs include directories."),
-    overwrite: bool = typer.Option(False, "--overwrite/--no-overwrite", help="Overwrite existing .md files."),
-    engine: str = typer.Option("hybrid", "--engine", "-e", help="Conversion engine: hybrid | unstructured | pymupdf | docling"),
-    extract_images: bool = typer.Option(False, "--images/--no-images", help="Extract and save images from PDFs."),
-):
-    """
-    Convert PDF(s) to Markdown.
-    Engines:
-      - hybrid: combines unstructured (headings) + docling (tables) - RECOMMENDED for complex PDFs
-      - unstructured: best heading/section fidelity
-      - pymupdf: fast fallback (PyMuPDF + pymupdf4llm)
-      - docling: strong structure (optional, if installed)
-    """
-    # Collect PDFs using library function
-    pdfs = collect_pdfs(inputs, recursive)
-    if not pdfs:
-        raise typer.BadParameter("No PDF files found in the given inputs.")
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    # Process conversions and display progress
-    eng = engine.lower().strip()
-    try:
-        for status in convert_pdfs_to_markdown(pdfs, out_dir, engine=eng, overwrite=overwrite, extract_images=extract_images):
-            if status["status"] == "skip":
-                typer.echo(f"[skip] {status['md_path']} exists (use --overwrite).")
-            elif status["status"] == "converting":
-                typer.echo(f"[{status['index']}/{status['total']}] Converting ({eng}): {status['pdf']}")
-            elif status["status"] == "processing":
-                step = status.get("step", "processing")
-                typer.echo(f"  → {step}...")
-            elif status["status"] == "done":
-                msg = f"[ok] {status['md_path']}"
-                images = status.get("images", 0)
-                if images > 0:
-                    msg += f" ({images} images extracted)"
-                tables = status.get("tables_found", 0)
-                if tables > 0:
-                    msg += f" ({tables} tables)"
-                typer.echo(msg)
-    except (ImportError, ValueError) as e:
-        raise typer.BadParameter(str(e))
-
-    typer.echo(f"[done] Wrote Markdown to {out_dir.resolve()}")
-
-
 @app.command("index")
 def cmd_index(
-    input_path: list[Path] = typer.Argument(..., help="Files and/or directories to ingest."),
+    input_path: list[Path] = typer.Argument(..., help="Markdown files and/or directories to index."),
     output: Path = typer.Option(Path("./index"), "--output", "-o", help="Index output directory."),
     embed_model: str = typer.Option("sentence-transformers/all-MiniLM-L6-v2", help="HuggingFace embedding model."),
-    chunk_size: int = typer.Option(800, help="Chunk size (tokens/approx)."),
-    chunk_overlap: int = typer.Option(120, help="Chunk overlap."),
-    include: list[str] = typer.Option(["**/*"], "--include", "-i", help="Glob patterns to include (repeatable)."),
+    chunk_size: int = typer.Option(1024, help="Chunk size for markdown parsing."),
+    chunk_overlap: int = typer.Option(200, help="Chunk overlap for markdown parsing."),
+    include: list[str] = typer.Option(None, "--include", "-i", help="Glob patterns to include (repeatable). Defaults to *.md files."),
     exclude: list[str] = typer.Option(
         ["**/.git/**", "**/__pycache__/**", "**/*.png", "**/*.jpg", "**/*.jpeg", "**/*.gif"],
         "--exclude", "-x", help="Glob patterns to exclude (repeatable).",
@@ -106,7 +56,7 @@ def cmd_index(
     max_files: int | None = typer.Option(None, help="Limit number of files ingested."),
     show_stats: bool = typer.Option(True, help="Print basic stats after indexing."),
 ):
-    """Build/update a local FAISS-backed index from your files."""
+    """Build/update a local FAISS-backed index from markdown files using MarkdownNodeParser."""
     stats = build_index(
         inputs=input_path,
         index_dir=output,

@@ -21,10 +21,6 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Environment variable for index directory, with default
-DEFAULT_INDEX_DIR = Path(os.getenv("ATHENAEUM_INDEX_DIR", "./index"))
-
-
 # Models for API requests and responses
 class RetrieveRequest(BaseModel):
     query: str
@@ -45,7 +41,7 @@ class ChatRequest(BaseModel):
 
 def get_index_dir() -> Path:
     """Get the index directory from environment variable or default."""
-    index_dir = Path(os.getenv("ASK_ANDRAAX_INDEX_DIR", DEFAULT_INDEX_DIR))
+    index_dir = Path(os.getenv("ATHENAEUM_INDEX_DIR", "./index"))
     if not index_dir.exists():
         raise FileNotFoundError(f"Index directory not found: {index_dir}")
     return index_dir
