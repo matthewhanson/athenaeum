@@ -6,10 +6,10 @@ A RAG (Retrieval-Augmented Generation) system built with LlamaIndex and FastAPI 
 
 ## Features
 
-- **Vector Search**: FAISS-backed vector search using HuggingFace embeddings
-- **PDF Preprocessing**: Convert PDFs to Markdown with multiple engines (unstructured, pymupdf, docling)
+- **Markdown-Focused**: Optimized for indexing markdown documents with structure-aware parsing
+- **Vector Search**: FAISS-backed vector search using HuggingFace embeddings  
 - **MCP Server**: HTTP API with clean endpoints for retrieval and chat
-- **CLI Tools**: Convert PDFs, build indices, query, and run the server
+- **CLI Tools**: Build indices, query, and run the MCP server
 - **AWS Lambda Deployment**: Serverless deployment with CDK, OAuth authentication, and S3 index storage
 - **Well-Tested**: Comprehensive test suite with 12 passing tests
 - **Clean Architecture**: Logical separation between indexing, retrieval, API, and CLI layers
@@ -43,49 +43,23 @@ uv run athenaeum --version
 uv run athenaeum --help
 ```
 
-#### Convert PDFs to Markdown
-
-```bash
-# Using hybrid engine (RECOMMENDED for complex PDFs like game books)
-# Combines unstructured (headings) + docling (tables)
-uv run athenaeum convert ./pdfs --out ./markdown_output --engine hybrid
-
-# Using default engine (unstructured only)
-uv run athenaeum convert ./pdfs --out ./markdown_output --engine unstructured
-
-# Using PyMuPDF (faster, simpler)
-uv run athenaeum convert ./pdfs --out ./markdown_output --engine pymupdf
-
-# Using Docling (better tables)
-uv run athenaeum convert ./pdfs --out ./markdown_output --engine docling
-
-# Overwrite existing files
-uv run athenaeum convert ./pdfs --out ./markdown_output --overwrite
-
-# Extract images from PDFs
-uv run athenaeum convert ./pdfs --out ./markdown_output --images
-```
-
-**For complex PDFs with images and tables:** Use `--engine hybrid` for best results. The hybrid engine combines unstructured (for headings) with docling (for tables), providing the most accurate conversion for complex documents.
-
 #### Build an Index
 
 ```bash
-# Basic indexing
-uv run athenaeum index ./your_documents --output ./index
-
-# With custom patterns
-uv run athenaeum index ./docs \
-  --output ./index \
-  --include "*.md" "*.txt" \
-  --exclude "**/.git/**" "**/__pycache__/**"
+# Basic indexing (defaults to *.md files)
+uv run athenaeum index ./your_markdown_docs --output ./index
 
 # Custom embedding model and chunk settings
 uv run athenaeum index ./docs \
   --output ./index \
   --embed-model "sentence-transformers/all-MiniLM-L6-v2" \
-  --chunk-size 800 \
-  --chunk-overlap 120
+  --chunk-size 1024 \
+  --chunk-overlap 200
+
+# Exclude specific patterns
+uv run athenaeum index ./docs \
+  --output ./index \
+  --exclude "**/.git/**" "**/__pycache__/**"
 ```
 
 #### Query the Index
@@ -122,6 +96,9 @@ Deploy Athenaeum as a serverless Lambda function with OAuth authentication:
 # Install deployment dependencies
 uv sync --extra deploy
 
+# Build your markdown index
+uv run athenaeum index ./your_docs --output ./index
+
 # Configure OAuth (copy example and edit)
 cp cdk.context.json.example cdk.context.json
 
@@ -129,12 +106,14 @@ cp cdk.context.json.example cdk.context.json
 ./deploy.sh
 ```
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment instructions, including:
-- OAuth configuration (Auth0, Cognito, Okta)
-- Index packaging strategies
-- Cost estimation
-- Connecting to ChatGPT
-- Troubleshooting
+**What you get:**
+- Lambda function running FastAPI + Mangum
+- API Gateway with OAuth JWT authentication
+- S3 storage for large indices
+- Auto-scaling serverless infrastructure
+- **Cost:** ~$1-2/month for 10K requests with 2GB index
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete instructions including OAuth setup, troubleshooting, and ChatGPT integration.
 
 ## MCP Server API
 
@@ -275,33 +254,27 @@ The codebase is organized by concern with clear separation between indexing, ret
 
 ```
 src/athenaeum/
-├── utils.py              # Shared utilities (22 lines)
-│   └── setup_settings() - Configure LlamaIndex Settings
+├── utils.py              # Shared utilities (~22 lines)
+│   └── setup_settings() - Configure LlamaIndex with MarkdownNodeParser
 │
-├── indexer.py            # Indexing & PDF preprocessing (344 lines)
-│   ├── PDF Conversion:
-│   │   ├── collect_pdfs()
-│   │   ├── convert_pdfs_to_markdown()
-│   │   └── _convert_with_*() - Engine implementations
-│   └── Index Building:
-│       ├── build_index() - PUBLIC API
-│       └── _validate_paths(), _build_document_reader(), etc. - Private helpers
+├── indexer.py            # Markdown indexing (~169 lines)
+│   ├── build_index() - PUBLIC API - Build FAISS index from markdown
+│   └── _validate_paths(), _build_document_reader(), etc. - Private helpers
 │
-├── retriever.py          # Query & retrieval (109 lines)
+├── retriever.py          # Query & retrieval (~109 lines)
 │   ├── query_index() - PUBLIC API - Query with answer generation
 │   ├── retrieve_context() - PUBLIC API - Retrieve context chunks
 │   └── _load_index_storage() - Private helper
 │
-├── mcp_server.py         # FastAPI MCP server (201 lines)
+├── mcp_server.py         # FastAPI MCP server (~160 lines)
 │   ├── GET /            - Landing page with API docs
 │   ├── GET /health      - Health check
 │   ├── GET /models      - List models
 │   ├── POST /retrieve   - Retrieve context
 │   └── POST /chat       - Chat with RAG
 │
-└── main_cli.py           # Typer CLI (197 lines)
-    ├── convert          - PDF to Markdown
-    ├── index            - Build index
+└── main_cli.py           # Typer CLI (~160 lines)
+    ├── index            - Build markdown index
     ├── query            - Query index
     └── serve            - Launch MCP server
 
@@ -315,7 +288,7 @@ tests/
 
 ### Design Principles
 
-1. **Cohesion**: PDF conversion is in `indexer.py` because it's preprocessing for indexing
+1. **Markdown-First**: Uses LlamaIndex's `MarkdownNodeParser` for structure-aware chunking
 2. **Separation of Concerns**: Indexing (`indexer.py`) vs Retrieval (`retriever.py`)
 3. **Minimal Public API**: Internal helpers prefixed with `_`
 4. **Thin Interface Layers**: CLI and API delegate to business logic
@@ -323,18 +296,18 @@ tests/
 
 ## Key Dependencies
 
-- **LlamaIndex**: Vector search, document loading, and RAG orchestration
+- **LlamaIndex**: Vector search, `MarkdownNodeParser`, and RAG orchestration
 - **FastAPI**: HTTP API server
 - **FAISS**: Efficient vector storage and similarity search
 - **HuggingFace Transformers**: Local embeddings (all-MiniLM-L6-v2)
 - **Typer**: CLI framework
 - **Pydantic**: Data validation for API
 
-### PDF Conversion Engines
+### Deployment Dependencies (optional)
 
-- **unstructured** (default): Best heading/section fidelity
-- **pymupdf**: Fast fallback with pymupdf4llm
-- **docling**: Strong structure preservation (optional)
+- **AWS CDK**: Infrastructure as code for Lambda deployment
+- **Mangum**: ASGI adapter for running FastAPI on Lambda
+- **python-jose**: JWT/OAuth token validation
 
 ## Environment Variables
 
@@ -345,6 +318,20 @@ export OPENAI_MODEL="gpt-4o-mini"
 # For MCP server (set automatically by CLI)
 export ATHENAEUM_INDEX_DIR="/path/to/index"
 ```
+
+## Markdown Indexing
+
+Athenaeum uses LlamaIndex's `MarkdownNodeParser` for structure-aware chunking that respects:
+- Heading hierarchy
+- Code blocks
+- Tables
+- Blockquotes
+
+**Default chunk settings:**
+- Size: 1024 characters (~200 words)
+- Overlap: 200 characters
+
+See [MARKDOWN_INDEXING_BEST_PRACTICES.md](MARKDOWN_INDEXING_BEST_PRACTICES.md) for detailed guidance on optimizing markdown documents for RAG.
 
 ## Development
 
