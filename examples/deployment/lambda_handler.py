@@ -1,18 +1,13 @@
 """
 Lambda handler for Athenaeum MCP Server.
-Uses Mangum to adapt FastAPI to AWS Lambda.
+Uses AWS Lambda Web Adapter to run FastAPI with uvicorn.
+
+This file is executed during Lambda cold start to prepare the environment.
+Lambda Web Adapter will start uvicorn automatically using the AWS_LWA_* environment variables.
 """
 import os
-import sys
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-
-from mangum import Mangum
-from athenaeum.mcp_server import app
-
-# Download index from S3 if not in Lambda package
 def ensure_index():
     """Download index files from S3 to /tmp if needed."""
     import boto3
@@ -51,5 +46,5 @@ def ensure_index():
 # Ensure index is available (cold start)
 ensure_index()
 
-# Create Mangum handler
-handler = Mangum(app, lifespan="off")
+# Lambda Web Adapter will automatically start uvicorn with:
+# uvicorn athenaeum.mcp_server:app --host 0.0.0.0 --port 8080

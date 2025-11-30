@@ -107,7 +107,7 @@ cp cdk.context.json.example cdk.context.json
 ```
 
 **What you get:**
-- Lambda function running FastAPI + Mangum
+- Lambda function running FastAPI + Lambda Web Adapter
 - API Gateway with OAuth JWT authentication
 - S3 storage for large indices
 - Auto-scaling serverless infrastructure
@@ -306,7 +306,7 @@ tests/
 ### Deployment Dependencies (optional)
 
 - **AWS CDK**: Infrastructure as code for Lambda deployment
-- **Mangum**: ASGI adapter for running FastAPI on Lambda
+- **Lambda Web Adapter**: AWS's official adapter for running web apps on Lambda
 - **python-jose**: JWT/OAuth token validation
 
 ## Environment Variables

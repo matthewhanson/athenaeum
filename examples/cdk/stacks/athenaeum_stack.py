@@ -22,7 +22,7 @@ class AtheneumStack(Stack):
     CDK Stack for deploying Athenaeum as a serverless Lambda function.
     
     Includes:
-    - Lambda function with FastAPI + Mangum
+    - Lambda function with FastAPI + Lambda Web Adapter
     - API Gateway with OAuth authorizer
     - S3 bucket for index files (optional fallback)
     - IAM roles and permissions
@@ -79,12 +79,22 @@ class AtheneumStack(Stack):
             description="Athenaeum dependencies (LlamaIndex, FAISS, etc.)",
         )
 
+        # Lambda Web Adapter layer (official AWS layer)
+        # See: https://github.com/awslabs/aws-lambda-web-adapter
+        # ARN format: arn:aws:lambda:{region}:753240598075:layer:LambdaAdapterLayerX86:23
+        web_adapter_layer = lambda_.LayerVersion.from_layer_version_arn(
+            self,
+            "LambdaWebAdapter",
+            # Use the latest version for your region
+            f"arn:aws:lambda:{self.region}:753240598075:layer:LambdaAdapterLayerX86:23"
+        )
+
         # Lambda function for the MCP server
         mcp_lambda = lambda_.Function(
             self,
             "MCPServerFunction",
             runtime=lambda_.Runtime.PYTHON_3_12,
-            handler="lambda_handler.handler",
+            handler="run.sh",  # Lambda Web Adapter runs this script
             code=lambda_.Code.from_asset(
                 str(project_root / "deployment"),
                 bundling={
@@ -95,11 +105,14 @@ class AtheneumStack(Stack):
                         " && ".join([
                             "cp -r /asset-input/src /asset-output/",
                             "cp /asset-input/deployment/lambda_handler.py /asset-output/",
+                            "echo '#!/bin/sh' > /asset-output/run.sh",
+                            "echo 'python lambda_handler.py && exec uvicorn athenaeum.mcp_server:app --host 0.0.0.0 --port 8080' >> /asset-output/run.sh",
+                            "chmod +x /asset-output/run.sh",
                         ]),
                     ],
                 },
             ),
-            layers=[dependencies_layer],
+            layers=[dependencies_layer, web_adapter_layer],
             timeout=Duration.seconds(30),
             memory_size=2048,  # Increase for large models/indices
             environment={
@@ -107,6 +120,10 @@ class AtheneumStack(Stack):
                 "ATHENAEUM_INDEX_DIR": "/tmp/index",  # Lambda tmp storage
                 "OAUTH_ISSUER": self.node.try_get_context("oauth_issuer") or "",
                 "OAUTH_AUDIENCE": self.node.try_get_context("oauth_audience") or "",
+                # Lambda Web Adapter configuration
+                "AWS_LWA_INVOKE_MODE": "response_stream",  # Enable response streaming
+                "AWS_LWA_PORT": "8080",
+                "PYTHONPATH": "/opt/python:/var/task/src",
             },
             log_retention=logs.RetentionDays.ONE_WEEK,
         )

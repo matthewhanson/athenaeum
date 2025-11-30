@@ -4,7 +4,7 @@ This guide covers deploying Athenaeum as a serverless Lambda function with OAuth
 
 ## Architecture
 
-- **AWS Lambda**: Runs the FastAPI MCP server using Mangum adapter
+- **AWS Lambda**: Runs the FastAPI MCP server using Lambda Web Adapter
 - **API Gateway**: Provides HTTP endpoints with custom OAuth authorizer
 - **S3**: Stores index files (if too large for Lambda)
 - **Lambda Layer**: Contains heavy dependencies (PyTorch, FAISS, LlamaIndex)

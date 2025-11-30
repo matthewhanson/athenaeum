@@ -97,7 +97,7 @@ S3 Bucket (index files)
 
 The Lambda function:
 1. Downloads index from S3 on cold start
-2. Serves FastAPI via Mangum adapter
+2. Serves FastAPI via Lambda Web Adapter
 3. Handles RAG queries using athenaeum library
 
 ## Cost Estimates

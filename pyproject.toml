@@ -33,9 +33,9 @@ dev = [
 deploy = [
   "aws-cdk-lib>=2.100.0",
   "constructs>=10.0.0",
-  "mangum>=0.17.0",  # ASGI adapter for Lambda
   "python-jose[cryptography]>=3.3.0",  # JWT/OAuth handling
   "python-multipart>=0.0.6",  # OAuth form data
+  "boto3>=1.34.0",  # AWS SDK for S3 index download
 ]
 
 [build-system]
