@@ -78,6 +78,8 @@ def cmd_index(
 def cmd_query(
     output: Path = typer.Option(Path("./index"), "--output", "-o", help="Index directory."),
     embed_model: str = typer.Option("sentence-transformers/all-MiniLM-L6-v2", help="HuggingFace embedding model."),
+    llm_provider: str = typer.Option("ollama", "--llm-provider", help="LLM provider: 'ollama' or 'openai'."),
+    llm_model: str = typer.Option("llama3.1:8b", "--llm-model", help="LLM model name."),
     top_k: int = typer.Option(5, help="Top-k nodes to retrieve."),
     question: str = typer.Argument(..., help="Your question for the indexed corpus."),
     print_sources: bool = typer.Option(True, "--sources/--no-sources", help="Print sources after the answer."),
@@ -87,6 +89,8 @@ def cmd_query(
         index_dir=output,
         question=question,
         embed_model=embed_model,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
         top_k=top_k,
     )
     typer.echo("\n=== Answer ===")
