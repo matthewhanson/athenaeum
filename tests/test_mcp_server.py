@@ -44,7 +44,7 @@ def test_list_models(mock_dir, client):
 
 @patch("athenaeum.mcp_server.get_index_dir")
 @patch("athenaeum.mcp_server.retrieve_context")
-def test_mcp_retrieve(mock_retrieve, mock_dir, client, mock_index_dir):
+def test_mcp_search(mock_retrieve, mock_dir, client, mock_index_dir):
     # Setup mock
     mock_dir.return_value = mock_index_dir
     mock_retrieve.return_value = [
@@ -58,7 +58,7 @@ def test_mcp_retrieve(mock_retrieve, mock_dir, client, mock_index_dir):
     ]
     
     # Test endpoint
-    response = client.post("/retrieve", json={"query": "test", "limit": 1})
+    response = client.post("/search", json={"query": "test", "limit": 1})
     assert response.status_code == 200
     result = response.json()
     
@@ -112,7 +112,7 @@ def test_search_endpoint(mock_retrieve, mock_dir, client, mock_index_dir):
     ]
     
     # Test endpoint
-    response = client.post("/retrieve", json={"query": "test", "limit": 1})
+    response = client.post("/search", json={"query": "test", "limit": 1})
     assert response.status_code == 200
     result = response.json()
     

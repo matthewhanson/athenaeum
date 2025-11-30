@@ -132,7 +132,7 @@ Landing page with API documentation
   "endpoints": {
     "/health": "Health check",
     "/models": "List available models",
-    "/retrieve": "Retrieve context chunks",
+    "/search": "Search for context chunks",
     "/chat": "Chat with RAG"
   }
 }
@@ -164,8 +164,8 @@ List available retrieval models
 }
 ```
 
-#### `POST /retrieve`
-Retrieve context chunks matching a query
+#### `POST /search`
+Search for context chunks matching a query
 
 **Request:**
 ```json
@@ -270,7 +270,7 @@ src/athenaeum/
 │   ├── GET /            - Landing page with API docs
 │   ├── GET /health      - Health check
 │   ├── GET /models      - List models
-│   ├── POST /retrieve   - Retrieve context
+│   ├── POST /search     - Search for context
 │   └── POST /chat       - Chat with RAG
 │
 └── main_cli.py           # Typer CLI (~160 lines)

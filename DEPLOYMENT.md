@@ -123,7 +123,7 @@ aws cloudformation describe-stacks \
 2. **Call the API** with the token:
 
 ```bash
-curl -X POST https://YOUR_API_ENDPOINT/retrieve \
+curl -X POST https://YOUR_API_ENDPOINT/search \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query": "What is this about?", "top_k": 5}'
@@ -139,8 +139,8 @@ curl https://YOUR_API_ENDPOINT/health
 curl https://YOUR_API_ENDPOINT/models \
   -H "Authorization: Bearer YOUR_TOKEN"
 
-# Retrieve documents
-curl -X POST https://YOUR_API_ENDPOINT/retrieve \
+# Search for documents
+curl -X POST https://YOUR_API_ENDPOINT/search \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"query": "search query", "top_k": 5}'

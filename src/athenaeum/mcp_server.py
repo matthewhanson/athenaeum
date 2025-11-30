@@ -22,7 +22,7 @@ app = FastAPI(
 )
 
 # Models for API requests and responses
-class RetrieveRequest(BaseModel):
+class SearchRequest(BaseModel):
     query: str
     limit: int = 5
 
@@ -51,9 +51,9 @@ def get_index_dir() -> Path:
 def landing_page() -> Dict[str, Any]:
     """Landing page with API documentation and endpoint links."""
     return {
-        "name": "Ask Andraax MCP Server",
+        "name": "Athenaeum MCP Server",
         "version": "0.1.0",
-        "description": "An MCP-compatible API for retrieving Shadow World lore using RAG",
+        "description": "An MCP-compatible API for retrieving from a custom knowledge base using RAG",
         "endpoints": [
             {
                 "path": "/health",
@@ -66,9 +66,9 @@ def landing_page() -> Dict[str, Any]:
                 "description": "List available models"
             },
             {
-                "path": "/retrieve",
+                "path": "/search",
                 "method": "POST",
-                "description": "Retrieve context chunks matching a query for RAG applications",
+                "description": "Search for context chunks matching a query for RAG applications",
                 "parameters": {
                     "query": "The search query string",
                     "limit": "Number of results to return (default: 5)"
@@ -113,10 +113,10 @@ def list_models() -> Dict[str, Any]:
     }
 
 
-@app.post("/retrieve")
-def retrieve(request: RetrieveRequest, index_dir: Path = Depends(get_index_dir)) -> Dict[str, Any]:
+@app.post("/search")
+def search(request: SearchRequest, index_dir: Path = Depends(get_index_dir)) -> Dict[str, Any]:
     """
-    Retrieval endpoint for RAG.
+    Search endpoint for RAG.
     
     This endpoint returns context chunks matching the query for use in RAG applications.
     """
