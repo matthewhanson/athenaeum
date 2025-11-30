@@ -163,11 +163,13 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> Dict
             "error": "No user message found in the chat history"
         }
     
-    # Query the index
+    # Query the index using OpenAI
     result = query_index(
         index_dir=index_dir,
         question=user_message.content,
-        top_k=5
+        top_k=5,
+        llm_provider="openai",
+        llm_model=request.model
     )
     
     # Format as MCP response
