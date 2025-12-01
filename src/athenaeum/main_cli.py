@@ -12,10 +12,6 @@ from pydantic.warnings import UnsupportedFieldAttributeWarning
 
 warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
 
-# Import refactored modules
-from athenaeum.indexer import build_index
-from athenaeum.retriever import query_index, retrieve_context
-
 app = typer.Typer(help="Athenaeum CLI — Give your LLM a library. Build and query markdown indexes.")
 
 def _pkg_version() -> str:
@@ -57,6 +53,8 @@ def cmd_index(
     show_stats: bool = typer.Option(True, help="Print basic stats after indexing."),
 ):
     """Build/update a local FAISS-backed index from markdown files using MarkdownNodeParser."""
+    from athenaeum.indexer import build_index
+    
     stats = build_index(
         inputs=input_path,
         index_dir=output,
@@ -82,6 +80,8 @@ def cmd_search(
     question: str = typer.Argument(..., help="Your search query."),
 ):
     """Search the index and return relevant chunks (no LLM)."""
+    from athenaeum.retriever import retrieve_context
+    
     contexts = retrieve_context(
         index_dir=output,
         question=question,
@@ -92,7 +92,7 @@ def cmd_search(
     typer.echo(f"\n=== Found {len(contexts)} results ===\n")
     for i, ctx in enumerate(contexts, 1):
         typer.echo(f"[{i}] {ctx['metadata']['path']} (score={ctx['metadata'].get('score')})")
-        typer.echo(f"{ctx['content'][:200]}...")
+        typer.echo(ctx['content'])
         typer.echo()
 
 
@@ -100,13 +100,15 @@ def cmd_search(
 def cmd_chat(
     output: Path = typer.Option(Path("./index"), "--output", "-o", help="Index directory."),
     embed_model: str = typer.Option("sentence-transformers/all-MiniLM-L6-v2", help="HuggingFace embedding model."),
-    llm_provider: str = typer.Option("ollama", "--llm-provider", help="LLM provider: 'ollama' or 'openai'."),
-    llm_model: str = typer.Option("llama3.1:8b", "--llm-model", help="LLM model name."),
+    llm_provider: str = typer.Option("openai", "--llm-provider", help="LLM provider: 'ollama' or 'openai'."),
+    llm_model: str = typer.Option("gpt-4o-mini", "--llm-model", help="LLM model name."),
     top_k: int = typer.Option(5, help="Top-k nodes to retrieve."),
     question: str = typer.Argument(..., help="Your question for the indexed corpus."),
     print_sources: bool = typer.Option(True, "--sources/--no-sources", help="Print sources after the answer."),
 ):
     """Query the index with RAG (retrieval + LLM answer generation)."""
+    from athenaeum.retriever import query_index
+    
     result = query_index(
         index_dir=output,
         question=question,

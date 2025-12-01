@@ -1,8 +1,7 @@
-"""
-Requirements file for Lambda deployment.
-This lists only the runtime dependencies needed in Lambda.
-Note: Lambda Web Adapter is provided as a Lambda Layer, not a pip dependency.
-"""
+# Requirements file for Lambda deployment.
+# This lists only the runtime dependencies needed in Lambda.
+# Note: Lambda Web Adapter is provided as a Lambda Layer, not a pip dependency.
+
 # Core dependencies for MCP server
 fastapi>=0.108.0
 pydantic>=2.5.0
@@ -14,8 +13,10 @@ llama-index-embeddings-huggingface>=0.1.0
 llama-index-vector-stores-faiss>=0.1.0
 llama-index-llms-openai>=0.6.4
 faiss-cpu>=1.7.4
-torch>=2.0.0
-transformers>=4.36
+# NOTE: torch will be installed via CDK with CPU-only flag to avoid 7GB CUDA libraries
+# transformers will be installed separately with --no-deps
+# torch>=2.0.0  
+# transformers>=4.36
 
 # OAuth/JWT
 python-jose[cryptography]>=3.3.0
@@ -23,3 +24,4 @@ requests>=2.31.0
 
 # AWS
 boto3>=1.28.0
+

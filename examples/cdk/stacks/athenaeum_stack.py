@@ -69,7 +69,14 @@ class AtheneumStack(Stack):
                         "bash",
                         "-c",
                         " && ".join([
-                            # Install requirements
+                            # CRITICAL: Install PyTorch CPU-only FIRST to avoid 7GB+ CUDA libraries
+                            # This is the official PyTorch recommendation for CPU-only installations
+                            "pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu -t /asset-output/python",
+                            # Install transformers WITHOUT dependencies to avoid reinstalling torch with CUDA
+                            "pip install --no-cache-dir 'transformers>=4.36' --no-deps -t /asset-output/python",
+                            # Install transformers' other dependencies (not torch)
+                            "pip install --no-cache-dir huggingface-hub filelock numpy packaging pyyaml regex requests tokenizers safetensors tqdm -t /asset-output/python",
+                            # Install remaining requirements
                             "pip install --no-cache-dir -r /asset-input/requirements.txt -t /asset-output/python",
                             # Install athenaeum package itself
                             "pip install --no-cache-dir /asset-input -t /asset-output/python",
