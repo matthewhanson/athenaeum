@@ -25,13 +25,24 @@ class SimpleAtheneumStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         project_root = Path(__file__).parent.parent.parent
+        athenaeum_root = project_root.parent.parent  # Up to code/, then to athenaeum/
         
         # Create dependencies layer
         # This handles all the complex PyTorch/LlamaIndex installation
+        
+        # Option 1: Local development (use athenaeum source)
         dependencies = DependenciesLayerConstruct(
             self,
             "Dependencies",
+            athenaeum_path=str(athenaeum_root),  # Path to athenaeum repo
         )
+        
+        # Option 2: Published package (after publishing to PyPI)
+        # dependencies = DependenciesLayerConstruct(
+        #     self,
+        #     "Dependencies",
+        #     athenaeum=">=0.1.0,<0.2.0",  # Version constraint
+        # )
         
         # Create MCP server
         # This creates Lambda + API Gateway + S3 bucket

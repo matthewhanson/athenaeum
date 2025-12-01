@@ -29,12 +29,12 @@ class DependenciesLayerConstruct(Construct):
     This construct handles the complex PyTorch CPU-only installation and
     aggressive cleanup to minimize layer size.
     
-    Example:
+    Example (local development):
         ```python
         deps_layer = DependenciesLayerConstruct(
             self, "Deps",
             athenaeum_path="/path/to/athenaeum",
-            requirements_path="/path/to/requirements.txt",
+            requirements_path="path/to/requirements.txt",
         )
         
         # Use in your Lambda function
@@ -44,6 +44,15 @@ class DependenciesLayerConstruct(Construct):
             ...
         )
         ```
+    
+    Example (published package):
+        ```python
+        deps_layer = DependenciesLayerConstruct(
+            self, "Deps",
+            athenaeum=">=0.1.0,<0.2.0",  # From PyPI
+            requirements_path="path/to/requirements.txt",
+        )
+        ```
     """
     
     def __init__(
@@ -51,6 +60,7 @@ class DependenciesLayerConstruct(Construct):
         scope: Construct,
         construct_id: str,
         *,
+        athenaeum: Optional[str] = None,
         athenaeum_path: Optional[str] = None,
         requirements_path: Optional[str] = None,
         description: str = "Athenaeum dependencies (PyTorch, LlamaIndex, FAISS, etc.)",
@@ -62,18 +72,35 @@ class DependenciesLayerConstruct(Construct):
         Args:
             scope: CDK scope
             construct_id: Construct ID
-            athenaeum_path: Path to athenaeum package (default: auto-detect)
-            requirements_path: Path to requirements.txt (default: use athenaeum's)
+            athenaeum: Install athenaeum from PyPI/git (e.g., ">=0.1.0" or "@git+https://...")
+            athenaeum_path: Install athenaeum from local source (for development)
+            requirements_path: Additional requirements file to install
             description: Layer description
+            
+        Note: Specify EITHER athenaeum OR athenaeum_path, not both.
         """
         super().__init__(scope, construct_id, **kwargs)
         
-        # Auto-detect athenaeum path if not provided
-        if athenaeum_path is None:
-            import athenaeum
-            athenaeum_path = str(Path(athenaeum.__file__).parent.parent.parent)
+        # Validation: must specify exactly one
+        if athenaeum and athenaeum_path:
+            raise ValueError(
+                "Specify either 'athenaeum' (for PyPI/git) or 'athenaeum_path' (for local dev), not both"
+            )
+        if not athenaeum and not athenaeum_path:
+            raise ValueError(
+                "Must specify either 'athenaeum' (version/URL for PyPI/git) or 'athenaeum_path' (path for local dev)"
+            )
         
-        asset_path = athenaeum_path
+        # Determine installation method and asset path
+        if athenaeum:
+            # Published: install from PyPI or git
+            athenaeum_install_cmd = f"pip install --no-cache-dir 'athenaeum{athenaeum}' -t /asset-output/python"
+            # Use current directory as asset path (minimal context)
+            asset_path = str(Path(__file__).parent)
+        else:
+            # Local dev: install from source
+            athenaeum_install_cmd = "pip install --no-cache-dir /asset-input -t /asset-output/python"
+            asset_path = athenaeum_path
         
         # Build bundling commands
         bundling_commands = [
@@ -100,9 +127,7 @@ class DependenciesLayerConstruct(Construct):
             )
         
         # Install athenaeum package itself
-        bundling_commands.append(
-            "pip install --no-cache-dir /asset-input -t /asset-output/python"
-        )
+        bundling_commands.append(athenaeum_install_cmd)
         
         # Cleanup to reduce layer size
         bundling_commands.extend([

@@ -45,10 +45,11 @@ S3 Bucket
 
 The simplest way to deploy is using Athenaeum's reusable CDK constructs.
 
-### Quick Start
+### Quick Start (Local Development)
 
 ```python
 # app.py
+from pathlib import Path
 from aws_cdk import App, Stack
 from athenaeum.infra import DependenciesLayerConstruct, MCPServerConstruct
 
@@ -56,7 +57,11 @@ app = App()
 stack = Stack(app, "MyKnowledgeBase")
 
 # Create dependencies layer (handles PyTorch, LlamaIndex, FAISS)
-deps = DependenciesLayerConstruct(stack, "Deps")
+# For local development: specify path to athenaeum source
+deps = DependenciesLayerConstruct(
+    stack, "Deps",
+    athenaeum_path="/path/to/athenaeum",  # Path to athenaeum repo
+)
 
 # Create MCP server (Lambda + API Gateway + S3)
 server = MCPServerConstruct(
@@ -71,6 +76,24 @@ server = MCPServerConstruct(
 app.synth()
 ```
 
+### Quick Start (Published Package)
+
+After athenaeum is published to PyPI:
+
+```python
+# Create dependencies layer from published package
+deps = DependenciesLayerConstruct(
+    stack, "Deps",
+    athenaeum=">=0.1.0,<0.2.0",  # Version constraint
+)
+
+# Or from GitHub
+deps = DependenciesLayerConstruct(
+    stack, "Deps",
+    athenaeum="@git+https://github.com/user/athenaeum.git@main",
+)
+```
+
 Deploy:
 ```bash
 cdk deploy
@@ -83,6 +106,7 @@ cdk deploy
 - **Versioned API**: Constructs are semver'd with athenaeum package
 - **No boilerplate**: All infrastructure logic encapsulated
 - **Fast rebuilds**: Cached dependencies layer
+- **Flexible**: Use local source (dev) or published package (prod)
 
 ### Example
 
