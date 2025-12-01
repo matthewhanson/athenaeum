@@ -1,5 +1,12 @@
 # Athenaeum
 
+[![PyPI - Version](https://img.shields.io/pypi/v/athenaeum)](https://pypi.org/project/athenaeum/)
+[![Python Version](https://img.shields.io/pypi/pyversions/athenaeum)](https://pypi.org/project/athenaeum/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![Security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
+
 *Give your LLM a library.*
 
 A RAG (Retrieval-Augmented Generation) system built with LlamaIndex and FastAPI that provides an MCP-compatible server for document retrieval and question answering.
@@ -11,15 +18,28 @@ A RAG (Retrieval-Augmented Generation) system built with LlamaIndex and FastAPI 
 - **MCP Server**: HTTP API with clean endpoints for retrieval and chat
 - **CLI Tools**: Build indices, query, and run the MCP server
 - **AWS Lambda Deployment**: Serverless deployment with CDK, OAuth authentication, and S3 index storage
+- **Reusable CDK Constructs**: L3 constructs for dependencies layer and MCP server deployment
 - **Well-Tested**: Comprehensive test suite with 12 passing tests
 - **Clean Architecture**: Logical separation between indexing, retrieval, API, and CLI layers
 
 ## Installation
 
-This project uses [uv](https://github.com/astral-sh/uv) for package management and Python 3.12.
+### From PyPI
+
+```bash
+pip install athenaeum
+
+# With deployment extras for AWS CDK
+pip install athenaeum[deploy]
+```
+
+### From Source
+
+This project uses [uv](https://github.com/astral-sh/uv) for package management and Python 3.12+.
 
 ```bash
 # Clone the repository
+git clone https://github.com/matthewhanson/athenaeum.git
 cd athenaeum
 
 # Install dependencies (uv will automatically create/use .venv)

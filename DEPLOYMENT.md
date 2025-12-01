@@ -90,7 +90,7 @@ deps = DependenciesLayerConstruct(
 # Or from GitHub
 deps = DependenciesLayerConstruct(
     stack, "Deps",
-    athenaeum="@git+https://github.com/user/athenaeum.git@main",
+    athenaeum="@git+https://github.com/matthewhanson/athenaeum.git@main",
 )
 ```
 

@@ -5,11 +5,17 @@ build/
 dist/
 wheels/
 *.egg-info
+*.egg
 
 # Virtual environments
 .venv
+venv/
+env/
+ENV/
 
+# Environment variables
 .env
+.env.local
 
 # CDK
 cdk.out/
@@ -22,3 +28,25 @@ cdk.context.json
 *.pyc
 /index/
 /figures/
+htmlcov/
+.coverage
+.coverage.*
+*.cover
+.tox/
+.hypothesis/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Ruff
+.ruff_cache/
