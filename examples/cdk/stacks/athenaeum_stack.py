@@ -57,6 +57,7 @@ class AtheneumStack(Stack):
 
         # Lambda layer for dependencies
         # Note: Due to Lambda size limits, we create a layer for heavy dependencies
+        # This includes athenaeum itself and all its dependencies
         dependencies_layer = lambda_.LayerVersion(
             self,
             "DependenciesLayer",
@@ -68,7 +69,11 @@ class AtheneumStack(Stack):
                         "bash",
                         "-c",
                         " && ".join([
-                            "pip install --no-cache-dir -r requirements.txt -t /asset-output/python",
+                            # Install requirements
+                            "pip install --no-cache-dir -r /asset-input/requirements.txt -t /asset-output/python",
+                            # Install athenaeum package itself
+                            "pip install --no-cache-dir /asset-input -t /asset-output/python",
+                            # Cleanup
                             "rm -rf /asset-output/python/**/__pycache__",
                             "rm -rf /asset-output/python/*.dist-info",
                         ]),
@@ -76,7 +81,7 @@ class AtheneumStack(Stack):
                 },
             ),
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
-            description="Athenaeum dependencies (LlamaIndex, FAISS, etc.)",
+            description="Athenaeum + dependencies (LlamaIndex, FAISS, etc.)",
         )
 
         # Lambda Web Adapter layer (official AWS layer)
@@ -96,15 +101,16 @@ class AtheneumStack(Stack):
             runtime=lambda_.Runtime.PYTHON_3_12,
             handler="run.sh",  # Lambda Web Adapter runs this script
             code=lambda_.Code.from_asset(
-                str(project_root / "deployment"),
+                str(project_root / "examples" / "deployment"),
                 bundling={
                     "image": lambda_.Runtime.PYTHON_3_12.bundling_image,
                     "command": [
                         "bash",
                         "-c",
                         " && ".join([
-                            "cp -r /asset-input/src /asset-output/",
-                            "cp /asset-input/deployment/lambda_handler.py /asset-output/",
+                            # Copy lambda handler
+                            "cp /asset-input/lambda_handler.py /asset-output/",
+                            # Create run.sh script for Lambda Web Adapter
                             "echo '#!/bin/sh' > /asset-output/run.sh",
                             "echo 'python lambda_handler.py && exec uvicorn athenaeum.mcp_server:app --host 0.0.0.0 --port 8080' >> /asset-output/run.sh",
                             "chmod +x /asset-output/run.sh",
