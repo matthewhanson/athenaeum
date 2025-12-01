@@ -14,7 +14,7 @@ warnings.filterwarnings("ignore", category=UnsupportedFieldAttributeWarning)
 
 # Import refactored modules
 from athenaeum.indexer import build_index
-from athenaeum.retriever import query_index
+from athenaeum.retriever import query_index, retrieve_context
 
 app = typer.Typer(help="Athenaeum CLI — Give your LLM a library. Build and query markdown indexes.")
 
@@ -74,8 +74,30 @@ def cmd_index(
         typer.echo(json.dumps(stats, indent=2))
 
 
-@app.command("query")
-def cmd_query(
+@app.command("search")
+def cmd_search(
+    output: Path = typer.Option(Path("./index"), "--output", "-o", help="Index directory."),
+    embed_model: str = typer.Option("sentence-transformers/all-MiniLM-L6-v2", help="HuggingFace embedding model."),
+    top_k: int = typer.Option(5, help="Top-k nodes to retrieve."),
+    question: str = typer.Argument(..., help="Your search query."),
+):
+    """Search the index and return relevant chunks (no LLM)."""
+    contexts = retrieve_context(
+        index_dir=output,
+        question=question,
+        embed_model=embed_model,
+        top_k=top_k,
+    )
+    
+    typer.echo(f"\n=== Found {len(contexts)} results ===\n")
+    for i, ctx in enumerate(contexts, 1):
+        typer.echo(f"[{i}] {ctx['metadata']['path']} (score={ctx['metadata'].get('score')})")
+        typer.echo(f"{ctx['content'][:200]}...")
+        typer.echo()
+
+
+@app.command("chat")
+def cmd_chat(
     output: Path = typer.Option(Path("./index"), "--output", "-o", help="Index directory."),
     embed_model: str = typer.Option("sentence-transformers/all-MiniLM-L6-v2", help="HuggingFace embedding model."),
     llm_provider: str = typer.Option("ollama", "--llm-provider", help="LLM provider: 'ollama' or 'openai'."),
@@ -84,7 +106,7 @@ def cmd_query(
     question: str = typer.Argument(..., help="Your question for the indexed corpus."),
     print_sources: bool = typer.Option(True, "--sources/--no-sources", help="Print sources after the answer."),
 ):
-    """Run a quick retrieval against an existing index."""
+    """Query the index with RAG (retrieval + LLM answer generation)."""
     result = query_index(
         index_dir=output,
         question=question,
