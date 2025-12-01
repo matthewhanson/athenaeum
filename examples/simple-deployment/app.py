@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-AWS CDK app for deploying Athenaeum MCP server.
+Simple Athenaeum deployment example.
+
+This CDK app shows how to use Athenaeum's reusable infrastructure constructs.
 """
 import os
 from aws_cdk import App, Environment
-from stacks.athenaeum_stack import AtheneumStack
+from stacks.simple_stack import SimpleAtheneumStack
 
 app = App()
 
@@ -14,12 +16,12 @@ region = os.environ.get("CDK_DEFAULT_REGION", app.node.try_get_context("region")
 
 env = Environment(account=account, region=region)
 
-# Deploy the Athenaeum stack
-AtheneumStack(
+# Deploy using the simple example stack
+SimpleAtheneumStack(
     app,
-    "AtheneumStack",
+    "SimpleAtheneumStack",
     env=env,
-    description="Athenaeum MCP Server - RAG system with vector search"
+    description="Simple example of Athenaeum MCP server deployment",
 )
 
 app.synth()

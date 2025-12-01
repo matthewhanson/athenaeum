@@ -1,22 +1,17 @@
 # AWS Lambda Deployment Guide
 
-This guide covers deploying Athenaeum as a serverless Lambda function with OAuth authentication.
+This guide covers deploying Athenaeum as a serverless Lambda function using AWS CDK.
 
 ## Quick Summary
 
-**Athenaeum** is a library for building RAG (Retrieval-Augmented Generation) systems over markdown documentation. This deployment guide shows how to deploy it to AWS Lambda using:
+**Athenaeum** is a library for building RAG (Retrieval-Augmented Generation) systems over markdown documentation. This deployment guide shows two approaches:
 
-- **FastAPI** for the MCP (Model Context Protocol) server
-- **Lambda Web Adapter** (official AWS layer) to run FastAPI on Lambda
-- **FAISS** vector store for embeddings (CPU-optimized)
-- **LlamaIndex** for RAG orchestration
-- **OpenAI GPT-4o-mini** as default LLM (configurable)
+1. **Using Athenaeum's Infrastructure Constructs** (Recommended)
+2. **Custom Deployment** (Advanced)
 
-**Deployment Strategy:**
-1. Dependencies layer: Heavy packages (athenaeum, PyTorch, FAISS) - cached
-2. Function layer: Your deployment scripts - fast rebuilds
-3. S3 storage: Index files (downloaded to Lambda /tmp on cold start)
-4. API Gateway: Optional OAuth protection
+The constructs provide:
+- **DependenciesLayerConstruct** - Lambda layer with PyTorch CPU, LlamaIndex, FAISS (~1.2GB optimized)
+- **MCPServerConstruct** - Complete FastAPI server with Lambda Web Adapter, API Gateway, S3
 
 ## Architecture
 
@@ -24,14 +19,14 @@ This guide covers deploying Athenaeum as a serverless Lambda function with OAuth
 Client
   ↓
 API Gateway (HTTP → Lambda)
-  ├─ OAuth Authorizer (optional)
+  ├─ CORS support
   └─ Routes: /search, /chat/completions, /health
   ↓
 Lambda Function
   ├─ Lambda Web Adapter (port 8080)
   ├─ FastAPI (athenaeum.mcp_server:app)
-  ├─ Dependencies Layer (athenaeum + PyPI packages)
-  └─ Function Layer (deployment scripts)
+  ├─ Dependencies Layer (PyTorch CPU, LlamaIndex, FAISS)
+  └─ Function Code (deployment scripts)
   ↓
 S3 Bucket
   └─ Index files (FAISS, docstore, metadata)
@@ -46,9 +41,58 @@ S3 Bucket
 5. **UV** package manager (recommended) or pip
 6. **OpenAI API key** (or Ollama for local development)
 
-## Installation
+## Deployment Approach 1: Using Infrastructure Constructs (Recommended)
 
-### 1. Install Athenaeum
+The simplest way to deploy is using Athenaeum's reusable CDK constructs.
+
+### Quick Start
+
+```python
+# app.py
+from aws_cdk import App, Stack
+from athenaeum.infra import DependenciesLayerConstruct, MCPServerConstruct
+
+app = App()
+stack = Stack(app, "MyKnowledgeBase")
+
+# Create dependencies layer (handles PyTorch, LlamaIndex, FAISS)
+deps = DependenciesLayerConstruct(stack, "Deps")
+
+# Create MCP server (Lambda + API Gateway + S3)
+server = MCPServerConstruct(
+    stack, "Server",
+    dependencies_layer=deps.layer,
+    index_path="./index",  # Your vector index
+    environment={
+        "OPENAI_API_KEY": "sk-...",  # Better: use Secrets Manager
+    },
+)
+
+app.synth()
+```
+
+Deploy:
+```bash
+cdk deploy
+```
+
+### Benefits
+
+- **~20 lines** instead of ~200
+- **Best practices built-in**: CPU-only PyTorch, size optimization, proper IAM
+- **Versioned API**: Constructs are semver'd with athenaeum package
+- **No boilerplate**: All infrastructure logic encapsulated
+- **Fast rebuilds**: Cached dependencies layer
+
+### Example
+
+See `examples/simple-deployment/` for a complete working example.
+
+## Deployment Approach 2: Custom CDK Stack
+
+For full control over infrastructure, you can write your own CDK stack. This approach gives you more flexibility but requires more code.
+
+### Installation
 
 ```bash
 # Clone or navigate to athenaeum
@@ -61,7 +105,7 @@ uv sync --extra deploy
 pip install -e ".[deploy]"
 ```
 
-### 2. Configure AWS CDK
+### Configure AWS CDK
 
 ```bash
 # Set environment
@@ -73,62 +117,14 @@ export CDK_DEFAULT_REGION=$AWS_REGION
 cdk bootstrap
 ```
 
-## Deployment
+### Custom Stack Example
 
-### Minimal Deployment (No OAuth)
-
-This is the fastest way to get started for testing:
-
-```bash
-# 1. Build your index locally
-athenaeum index ./docs --output ./index
-
-# 2. Deploy (this automatically uploads index to S3 if ./index/ exists)
-cd examples
-cdk deploy --hotswap
-
-# 3. Get endpoint URL from CDK output
-# Test: curl https://YOUR_API_ENDPOINT/health
-```
-
-### Production Deployment (With OAuth)
-
-### Production Deployment (With OAuth)
-
-For production with authentication:
-
-```bash
-# 1. Copy example config
-cp examples/cdk.json.example examples/cdk.json
-
-# 2. Edit cdk.json with your OAuth provider details
-nano examples/cdk.json
-```
-
-Example `cdk.json`:
-```json
-{
-  "context": {
-    "oauth_issuer": "https://YOUR_DOMAIN.auth0.com/",
-    "oauth_audience": "your-api-identifier",
-    "oauth_jwks_url": "https://YOUR_DOMAIN.auth0.com/.well-known/jwks.json"
-  }
-}
-```
-
-**Common OAuth Providers:**
-
-| Provider | Issuer | JWKS URL |
-|----------|--------|----------|
-| **Auth0** | `https://YOUR_DOMAIN.auth0.com/` | `https://YOUR_DOMAIN.auth0.com/.well-known/jwks.json` |
-| **AWS Cognito** | `https://cognito-idp.REGION.amazonaws.com/POOL_ID` | `https://cognito-idp.REGION.amazonaws.com/POOL_ID/.well-known/jwks.json` |
-| **Okta** | `https://YOUR_DOMAIN.okta.com/oauth2/default` | `https://YOUR_DOMAIN.okta.com/oauth2/default/v1/keys` |
-
-```bash
-# 3. Deploy with OAuth
-cd examples
-cdk deploy
-```
+See `examples/simple-deployment/stacks/athenaeum_stack.py` for a full custom CDK stack implementation showing:
+- PyTorch CPU-only installation (avoids 7GB+ CUDA libraries)
+- Lambda layer size optimization (~1.2GB → ~300MB compressed)
+- Lambda Web Adapter integration
+- S3 bucket for index storage
+- API Gateway with CORS
 
 ## Building Your Index
 
