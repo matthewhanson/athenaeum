@@ -262,21 +262,97 @@ curl -X POST https://YOUR_API_ENDPOINT/search \
 
 ## Updating Your Deployment
 
-### Update Code Only
+### Fast Iteration with --hotswap
+
+When making frequent changes to Lambda **function code only** (not dependencies, infrastructure, or IAM), use `--hotswap` for much faster deployments:
 
 ```bash
-# Make changes to athenaeum source code
-# Then redeploy (fast - only function layer rebuilds)
-cd examples
+# Standard deployment: 2-3 minutes (full CloudFormation update)
+cdk deploy
+
+# Hotswap deployment: 10-30 seconds (bypasses CloudFormation)
 cdk deploy --hotswap
 ```
 
-### Update Dependencies
+**What --hotswap does:**
+
+1. **Detects code-only changes**: Compares your local changes against deployed stack
+2. **Bypasses CloudFormation**: Directly updates Lambda via AWS SDK (`UpdateFunctionCode` API)
+3. **Skips changeset creation**: No waiting for CloudFormation to plan/execute
+4. **Updates immediately**: New code is live in seconds instead of minutes
+
+**What --hotswap does NOT do:**
+
+- ❌ Update dependencies layer (requires full `cdk deploy`)
+- ❌ Change infrastructure (API Gateway, S3, IAM, etc.)
+- ❌ Modify environment variables
+- ❌ Update resource configurations (memory, timeout, etc.)
+
+**When to use --hotswap:**
+
+- ✅ Fixing bugs in `lambda_handler.py` or `athenaeum/` source code
+- ✅ Tweaking FastAPI routes or response formatting
+- ✅ Adjusting LLM prompts or retrieval logic
+- ✅ Rapid development/testing cycles
+
+**When to use full `cdk deploy`:**
+
+- 🔄 Updated `requirements.txt` (new packages or versions)
+- 🔄 Changed Lambda memory, timeout, or other settings
+- 🔄 Modified environment variables
+- 🔄 Infrastructure changes (new API routes, S3 buckets, etc.)
+
+**Safety Notes:**
+
+- `--hotswap` is **development-only** - never use in production CI/CD pipelines
+- Falls back to full deployment if infrastructure changes detected
+- CloudFormation drift: Your stack's actual state diverges from template until next full deploy
+- Always do a final `cdk deploy` (without --hotswap) before production
+
+**Typical Workflow:**
 
 ```bash
-# Update requirements.txt or athenaeum package
-# Then deploy (slower - dependencies layer rebuilds)
-cd examples  
+# 1. Initial deployment (full)
+cdk deploy
+
+# 2. Fix bug in lambda_handler.py
+# Edit code...
+cdk deploy --hotswap  # 15 seconds
+
+# 3. Test, find another issue
+# Edit code...
+cdk deploy --hotswap  # 15 seconds
+
+# 4. Update requirements.txt (need new package)
+# Edit requirements.txt...
+cdk deploy  # 2-3 minutes (full - rebuilds dependencies layer)
+
+# 5. More code tweaks
+# Edit code...
+cdk deploy --hotswap  # 15 seconds
+
+# 6. Ready to merge? Final full deployment
+cdk deploy  # Ensures CloudFormation state is correct
+```
+
+### Update Scenarios
+
+**Scenario 1: Code-only changes (use --hotswap)**
+```bash
+# Made changes to athenaeum source code or lambda_handler.py
+cdk deploy --hotswap
+```
+
+**Scenario 2: Dependency changes (full deploy required)**
+```bash
+# Updated requirements.txt or athenaeum package version
+# Dependencies layer will rebuild (~2-3 min first time, then cached)
+cdk deploy
+```
+
+**Scenario 3: Infrastructure changes (full deploy required)**
+```bash
+# Changed Lambda memory, added environment variables, modified IAM, etc.
 cdk deploy
 ```
 
