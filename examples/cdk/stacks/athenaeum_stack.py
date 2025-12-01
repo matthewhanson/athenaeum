@@ -7,6 +7,7 @@ from aws_cdk import (
     Duration,
     RemovalPolicy,
     CfnOutput,
+    AssetHashType,
     aws_lambda as lambda_,
     aws_apigateway as apigateway,
     aws_s3 as s3,
@@ -63,26 +64,43 @@ class AtheneumStack(Stack):
             "DependenciesLayer",
             code=lambda_.Code.from_asset(
                 str(project_root),
+                asset_hash_type=AssetHashType.OUTPUT,  # Hash the OUTPUT, not input files - prevents unnecessary rebuilds
                 bundling={
                     "image": lambda_.Runtime.PYTHON_3_12.bundling_image,
                     "command": [
                         "bash",
                         "-c",
                         " && ".join([
-                            # CRITICAL: Install PyTorch CPU-only FIRST to avoid 7GB+ CUDA libraries
-                            # This is the official PyTorch recommendation for CPU-only installations
-                            "pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu -t /asset-output/python",
-                            # Install transformers WITHOUT dependencies to avoid reinstalling torch with CUDA
+                            # CRITICAL: Set PIP_EXTRA_INDEX_URL to force ALL pip installs to use CPU-only torch
+                            # This prevents ANY package from installing CUDA torch (7GB+ of NVIDIA libraries)
+                            "export PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu",
+                            # Install torch CPU-only FIRST
+                            "pip install --no-cache-dir torch -t /asset-output/python",
+                            # Install transformers WITHOUT dependencies to avoid reinstalling torch
                             "pip install --no-cache-dir 'transformers>=4.36' --no-deps -t /asset-output/python",
-                            # Install transformers' other dependencies (not torch)
+                            # Install transformers' dependencies (excluding torch which is already installed)
                             "pip install --no-cache-dir huggingface-hub filelock numpy packaging pyyaml regex requests tokenizers safetensors tqdm -t /asset-output/python",
                             # Install remaining requirements
                             "pip install --no-cache-dir -r /asset-input/requirements.txt -t /asset-output/python",
                             # Install athenaeum package itself
                             "pip install --no-cache-dir /asset-input -t /asset-output/python",
-                            # Cleanup
+                            # Cleanup - remove unnecessary files to reduce layer size
                             "rm -rf /asset-output/python/**/__pycache__",
                             "rm -rf /asset-output/python/*.dist-info",
+                            # Remove PyTorch dev files (headers, tests, bins) - saves ~200MB+
+                            "rm -rf /asset-output/python/torch/include",
+                            "rm -rf /asset-output/python/torch/bin",
+                            "rm -rf /asset-output/python/torch/test",
+                            "rm -rf /asset-output/python/torch/testing",
+                            "rm -rf /asset-output/python/torch/share",
+                            # Remove test/example/doc directories from all packages
+                            "find /asset-output/python -type d -name tests -exec rm -rf {} + 2>/dev/null || true",
+                            "find /asset-output/python -type d -name test -exec rm -rf {} + 2>/dev/null || true",
+                            "find /asset-output/python -type d -name testing -exec rm -rf {} + 2>/dev/null || true",
+                            "find /asset-output/python -type d -name examples -exec rm -rf {} + 2>/dev/null || true",
+                            "find /asset-output/python -type d -name docs -exec rm -rf {} + 2>/dev/null || true",
+                            # Remove .pyi stub files (type hints not needed at runtime)
+                            "find /asset-output/python -name '*.pyi' -delete 2>/dev/null || true",
                         ]),
                     ],
                 },
@@ -109,6 +127,7 @@ class AtheneumStack(Stack):
             handler="run.sh",  # Lambda Web Adapter runs this script
             code=lambda_.Code.from_asset(
                 str(project_root / "examples" / "deployment"),
+                asset_hash_type=AssetHashType.OUTPUT,  # Hash the OUTPUT to prevent unnecessary rebuilds
                 bundling={
                     "image": lambda_.Runtime.PYTHON_3_12.bundling_image,
                     "command": [
