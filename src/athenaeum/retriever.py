@@ -40,25 +40,28 @@ def query_index(
     index_dir: Path,
     question: str,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-    llm_provider: str = "ollama",
-    llm_model: str = "llama3.1:8b",
+    llm_provider: str = "openai",
+    llm_model: str = "gpt-4o-mini",
     top_k: int = 5,
 ) -> Dict[str, Any]:
     """
     Query an existing index with a question and generate an answer.
     
+    Uses sentence-transformers for embeddings (must match indexing model).
+    LLM provider can be OpenAI, AWS Bedrock, or others.
+    
     Args:
         index_dir: Path to the index directory
         question: The query to search for
-        embed_model: HuggingFace embedding model name
-        llm_provider: LLM provider - "ollama" (local) or "openai" (cloud)
-        llm_model: Model name for the provider
+        embed_model: HuggingFace embedding model (default: sentence-transformers/all-MiniLM-L6-v2)
+        llm_provider: LLM provider - "openai", "bedrock", etc. (default: "openai")
+        llm_model: Model name for the LLM provider (default: gpt-4o-mini for OpenAI)
         top_k: Number of results to return
         
     Returns:
         Dict with 'answer' and 'sources' keys
     """
-    setup_settings(embed_model, llm_provider=llm_provider, llm_model=llm_model)
+    setup_settings(embed_model=embed_model, llm_provider=llm_provider, llm_model=llm_model)
     storage_context = _load_index_storage(index_dir)
     index = load_index_from_storage(storage_context)
     
@@ -87,16 +90,18 @@ def retrieve_context(
     """
     Retrieve context chunks for a query without generating an answer.
     
+    Uses sentence-transformers for embeddings (must match indexing model).
+    
     Args:
         index_dir: Path to the index directory
         question: The query to search for
-        embed_model: HuggingFace embedding model name
+        embed_model: HuggingFace embedding model (default: sentence-transformers/all-MiniLM-L6-v2)
         top_k: Number of results to return
         
     Returns:
         List of dicts with 'content' and 'metadata' keys
     """
-    setup_settings(embed_model)
+    setup_settings(embed_model=embed_model)
     storage_context = _load_index_storage(index_dir)
     index = load_index_from_storage(storage_context)
     

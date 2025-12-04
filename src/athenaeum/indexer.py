@@ -107,9 +107,11 @@ def _generate_stats(docs, index: VectorStoreIndex) -> dict:
 def build_index(
     inputs: List[Path],
     index_dir: Path,
-    embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
     chunk_size: int = 1024,
     chunk_overlap: int = 200,
+    embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    llm_provider: str = "openai",
+    llm_model: str = "gpt-4o-mini",
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
     recursive: bool = True,
@@ -122,12 +124,17 @@ def build_index(
     Uses MarkdownNodeParser for structure-aware chunking that respects
     headings, code blocks, and other markdown elements.
     
+    Uses sentence-transformers for embeddings (local, consistent).
+    LLM provider is configurable but only used during indexing for metadata.
+    
     Args:
         inputs: List of markdown file paths or directories to index
         index_dir: Directory to store the index
-        embed_model: HuggingFace embedding model name
         chunk_size: Size of text chunks (default: 1024 for markdown)
         chunk_overlap: Overlap between chunks (default: 200 for markdown)
+        embed_model: HuggingFace embedding model (default: sentence-transformers/all-MiniLM-L6-v2)
+        llm_provider: LLM provider - "openai", "bedrock", etc. (default: "openai")
+        llm_model: Model name for the LLM provider (default: gpt-4o-mini for OpenAI)
         include: Glob patterns to include (defaults to markdown files)
         exclude: Glob patterns to exclude
         recursive: Whether to search directories recursively
@@ -138,7 +145,7 @@ def build_index(
         Stats dict if return_stats=True, else None
     """
     paths = _validate_paths(inputs)
-    setup_settings(embed_model, chunk_size, chunk_overlap)
+    setup_settings(chunk_size=chunk_size, chunk_overlap=chunk_overlap, embed_model=embed_model, llm_provider=llm_provider, llm_model=llm_model)
 
     # Default to markdown files only
     if include is None:

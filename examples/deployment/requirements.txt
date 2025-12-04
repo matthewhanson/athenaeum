@@ -1,0 +1,30 @@
+# Requirements for Athenaeum Lambda Container Deployment
+# This file is used by the Dockerfile to install dependencies
+
+# Core dependencies - these will be installed by athenaeum package
+# but listed here for clarity and Docker layer caching
+
+# FastAPI/ASGI
+fastapi>=0.108.0
+pydantic>=2.5.0
+uvicorn>=0.27.0
+
+# LlamaIndex core and integrations
+llama-index-core>=0.10.0
+llama-index-embeddings-huggingface>=0.2.0
+llama-index-vector-stores-faiss>=0.1.0
+
+# LLM providers (optional, install as needed)
+llama-index-llms-openai>=0.6.4
+
+# ML/Vector dependencies
+# Note: PyTorch will be installed separately with CPU-only flag
+transformers>=4.36
+sentence-transformers>=2.6.1
+faiss-cpu>=1.7.4
+
+# AWS SDK
+boto3>=1.34.0
+
+# OAuth/JWT for authentication
+python-jose[cryptography]>=3.3.0

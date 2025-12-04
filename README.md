@@ -110,20 +110,34 @@ uv run athenaeum serve --index ./index --reload
 
 ## AWS Lambda Deployment
 
-Deploy Athenaeum as a serverless Lambda function with OAuth authentication:
+Athenaeum uses **Docker container images** for Lambda deployment to support the full ML stack including PyTorch and sentence-transformers.
 
+```python
+from aws_cdk import Stack, CfnOutput, Duration
+from athenaeum.infra import MCPServerContainerConstruct
+import os
+
+class MyStack(Stack):
+    def __init__(self, scope, construct_id, **kwargs):
+        super().__init__(scope, construct_id, **kwargs)
+        
+        server = MCPServerContainerConstruct(
+            self, "Server",
+            index_path="/path/to/your/index",
+            environment={
+                "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
+            },
+            memory_size=2048,  # 2GB for ML workloads
+            timeout=Duration.minutes(5),
+        )
+        
+        CfnOutput(self, "ApiUrl", value=server.api_url)
+```
+
+**Deploy:**
 ```bash
-# Install deployment dependencies
-uv sync --extra deploy
-
-# Build your markdown index
-uv run athenaeum index ./your_docs --output ./index
-
-# Configure OAuth (copy example and edit)
-cp cdk.context.json.example cdk.context.json
-
-# Deploy to AWS
-./deploy.sh
+export OPENAI_API_KEY=sk-...
+cdk deploy
 ```
 
 **What you get:**

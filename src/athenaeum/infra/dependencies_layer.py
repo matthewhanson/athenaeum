@@ -2,16 +2,13 @@
 DependenciesLayerConstruct - A reusable Lambda layer for Athenaeum dependencies.
 
 This construct creates a Lambda layer containing:
-- PyTorch CPU-only (optimized, no CUDA)
-- Transformers
-- LlamaIndex
+- LlamaIndex (core, OpenAI integrations, FAISS)
 - FAISS CPU
+- FastAPI, Uvicorn, Pydantic
 - All other Athenaeum dependencies
 
-The layer is optimized for size (~1.2GB unzipped, ~300-400MB compressed) by:
-- Using CPU-only PyTorch wheels
-- Removing development files (headers, tests, docs)
-- Removing type stubs
+NO PyTorch or HuggingFace transformers - uses OpenAI API for embeddings and chat.
+This keeps the layer well under the 250MB unzipped limit.
 """
 from pathlib import Path
 from typing import Optional
@@ -24,10 +21,10 @@ from constructs import Construct
 
 class DependenciesLayerConstruct(Construct):
     """
-    Lambda layer containing Athenaeum and all its heavy dependencies.
+    Lambda layer containing Athenaeum and its dependencies (no PyTorch).
     
-    This construct handles the complex PyTorch CPU-only installation and
-    aggressive cleanup to minimize layer size.
+    Uses OpenAI API for embeddings and chat, so no local models needed.
+    This keeps the layer size well under Lambda's 250MB unzipped limit.
     
     Example (local development):
         ```python
@@ -63,8 +60,7 @@ class DependenciesLayerConstruct(Construct):
         athenaeum: Optional[str] = None,
         athenaeum_path: Optional[str] = None,
         requirements_path: Optional[str] = None,
-        description: str = "Athenaeum dependencies (PyTorch, LlamaIndex, FAISS, etc.)",
-        **kwargs,
+        description: str = "Athenaeum dependencies (LlamaIndex, FAISS, FastAPI)",
     ) -> None:
         """
         Create a dependencies layer for Athenaeum.
@@ -79,7 +75,7 @@ class DependenciesLayerConstruct(Construct):
             
         Note: Specify EITHER athenaeum OR athenaeum_path, not both.
         """
-        super().__init__(scope, construct_id, **kwargs)
+        super().__init__(scope, construct_id)
         
         # Validation: must specify exactly one
         if athenaeum and athenaeum_path:
@@ -102,31 +98,16 @@ class DependenciesLayerConstruct(Construct):
             athenaeum_install_cmd = "pip install --no-cache-dir /asset-input -t /asset-output/python"
             asset_path = athenaeum_path
         
-        # Build bundling commands
-        bundling_commands = [
-            # CRITICAL: Set PIP_EXTRA_INDEX_URL to force ALL pip installs to use CPU-only torch
-            # This prevents ANY package from installing CUDA torch (7GB+ of NVIDIA libraries)
-            "export PIP_EXTRA_INDEX_URL=https://download.pytorch.org/whl/cpu",
-            # Install torch CPU-only FIRST
-            "pip install --no-cache-dir torch -t /asset-output/python",
-            # Install transformers WITHOUT dependencies to avoid reinstalling torch
-            "pip install --no-cache-dir 'transformers>=4.36' --no-deps -t /asset-output/python",
-            # Install transformers' dependencies (excluding torch which is already installed)
-            "pip install --no-cache-dir huggingface-hub filelock numpy packaging pyyaml regex requests tokenizers safetensors tqdm -t /asset-output/python",
-        ]
+        # Build bundling commands - simple pip install, no PyTorch complexity
+        bundling_commands = []
         
         # Add requirements installation
         if requirements_path:
             bundling_commands.append(
                 f"pip install --no-cache-dir -r /asset-input/{requirements_path} -t /asset-output/python"
             )
-        else:
-            # Install athenaeum's dependencies
-            bundling_commands.append(
-                "pip install --no-cache-dir llama-index-core llama-index-embeddings-huggingface llama-index-vector-stores-faiss faiss-cpu fastapi uvicorn pydantic boto3 -t /asset-output/python"
-            )
         
-        # Install athenaeum package itself
+        # Install athenaeum package (which pulls in all dependencies via pyproject.toml)
         bundling_commands.append(athenaeum_install_cmd)
         
         # Cleanup to reduce layer size
@@ -134,12 +115,6 @@ class DependenciesLayerConstruct(Construct):
             # Remove Python cache and dist-info
             "rm -rf /asset-output/python/**/__pycache__",
             "rm -rf /asset-output/python/*.dist-info",
-            # Remove PyTorch dev files (headers, tests, bins) - saves ~200MB+
-            "rm -rf /asset-output/python/torch/include",
-            "rm -rf /asset-output/python/torch/bin",
-            "rm -rf /asset-output/python/torch/test",
-            "rm -rf /asset-output/python/torch/testing",
-            "rm -rf /asset-output/python/torch/share",
             # Remove test/example/doc directories from all packages
             "find /asset-output/python -type d -name tests -exec rm -rf {} + 2>/dev/null || true",
             "find /asset-output/python -type d -name test -exec rm -rf {} + 2>/dev/null || true",
