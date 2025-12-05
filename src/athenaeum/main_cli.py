@@ -100,7 +100,7 @@ def cmd_search(
 def cmd_chat(
     output: Path = typer.Option(Path("./index"), "--output", "-o", help="Index directory."),
     embed_model: str = typer.Option("sentence-transformers/all-MiniLM-L6-v2", help="HuggingFace embedding model."),
-    llm_provider: str = typer.Option("openai", "--llm-provider", help="LLM provider: 'ollama' or 'openai'."),
+    llm_provider: str = typer.Option("openai", "--llm-provider", help="LLM provider: 'openai' or 'bedrock'."),
     llm_model: str = typer.Option("gpt-4o-mini", "--llm-model", help="LLM model name."),
     top_k: int = typer.Option(5, help="Top-k nodes to retrieve."),
     question: str = typer.Argument(..., help="Your question for the indexed corpus."),
