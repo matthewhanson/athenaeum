@@ -16,6 +16,7 @@ from aws_cdk import (
     Duration,
     RemovalPolicy,
     CfnOutput,
+    Size,
     aws_lambda as lambda_,
     aws_apigateway as apigateway,
     aws_s3 as s3,
@@ -95,8 +96,44 @@ class MCPServerContainerConstruct(Construct):
         
         # Default Dockerfile and build context paths
         if dockerfile_path is None or docker_build_context is None:
+            # Try to find athenaeum source directory
+            # For file:// installs, look in the installed package's parent directories
             import athenaeum
-            athenaeum_root = Path(athenaeum.__file__).parent.parent.parent
+            import importlib.metadata
+            
+            athenaeum_pkg_dir = Path(athenaeum.__file__).parent
+            
+            # Try to find the actual source directory
+            # Method 1: Check if we're in development (src layout)
+            if (athenaeum_pkg_dir.parent.name == "src" and 
+                (athenaeum_pkg_dir.parent.parent / "examples").exists()):
+                athenaeum_root = athenaeum_pkg_dir.parent.parent
+            # Method 2: Check parent directories for examples/
+            elif (athenaeum_pkg_dir.parent / "examples").exists():
+                athenaeum_root = athenaeum_pkg_dir.parent
+            elif (athenaeum_pkg_dir.parent.parent / "examples").exists():
+                athenaeum_root = athenaeum_pkg_dir.parent.parent  
+            elif (athenaeum_pkg_dir.parent.parent.parent / "examples").exists():
+                athenaeum_root = athenaeum_pkg_dir.parent.parent.parent
+            # Method 3: Try to get from package metadata (for file:// installs)
+            else:
+                try:
+                    dist = importlib.metadata.distribution('athenaeum')
+                    # For file:// installs via uv, check ../../athenaeum from site-packages
+                    site_packages = Path(dist._path).parent.parent
+                    potential_root = site_packages.parent.parent.parent / "athenaeum"
+                    if (potential_root / "examples").exists():
+                        athenaeum_root = potential_root
+                    else:
+                        raise RuntimeError("Cannot find athenaeum root with examples/")
+                except Exception as e:
+                    raise RuntimeError(
+                        f"Could not find athenaeum examples directory. "
+                        f"Package is at {athenaeum_pkg_dir}. "
+                        f"Please provide explicit dockerfile_path and docker_build_context parameters. "
+                        f"Error: {e}"
+                    )
+            
             if dockerfile_path is None:
                 dockerfile_path = str(athenaeum_root / "examples" / "deployment" / "Dockerfile")
             if docker_build_context is None:
@@ -141,7 +178,7 @@ class MCPServerContainerConstruct(Construct):
                 file=str(Path(dockerfile_path).relative_to(docker_build_context)),
             ),
             memory_size=memory_size,
-            ephemeral_storage_size=ephemeral_storage_size,
+            ephemeral_storage_size=Size.mebibytes(ephemeral_storage_size),
             timeout=timeout,
             environment=env_vars,
             log_retention=log_retention,
