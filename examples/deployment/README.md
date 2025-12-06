@@ -1,182 +1,283 @@
-# Athenaeum Lambda Container Deployment
+# Athenaeum Lambda Deployment Template
 
-This directory contains files for deploying Athenaeum as an AWS Lambda function using Docker container images.
+This directory contains a **reference template** for deploying Athenaeum as an AWS Lambda function using Docker container images.
+
+## Files in This Template
+
+- **`Dockerfile`** - Example Dockerfile optimized for Lambda with PyTorch CPU
+- **`requirements.txt`** - Python dependencies for Lambda runtime
+- **`run.sh`** - Lambda Web Adapter startup script  
+- **`.dockerignore`** - Build optimization (excludes .venv, tests, etc.)
+- **`lambda_handler.py`** - *(Legacy)* S3 index download handler (not needed if index is baked in)
+- **`oauth_authorizer.py`** - *(Optional)* Lambda authorizer for OAuth/JWT
+
+## Recommended Usage
+
+**For production deployments**, copy this template to your application and customize it:
+
+```bash
+# In your application directory (e.g., my-knowledge-base/)
+cp -r athenaeum/examples/deployment ./deployment
+
+# Customize your Dockerfile to include your index
+cat >> Dockerfile <<'EOF'
+# Copy your index into the image (baked in for instant access)
+COPY index/ /var/task/index
+EOF
+```
+
+**Your application structure:**
+```
+my-application/
+├── Dockerfile           # Based on template, customized
+├── deployment/
+│   ├── requirements.txt
+│   └── run.sh
+├── index/              # Your vector index (baked into image)
+│   ├── docstore.json
+│   ├── faiss.index
+│   └── ...
+└── cdk/
+    └── app.py          # CDK deployment
+```
 
 ## Why Container Images?
 
-Lambda container images support up to 10GB, allowing us to include:
-- **PyTorch** (CPU-only, ~900MB)
-- **Transformers** and **sentence-transformers** for embeddings
-- **FAISS** for vector search
-- Full **Athenaeum** package with all dependencies
+AWS Lambda has two deployment options:
 
-Standard Lambda layers have a 250MB unzipped limit, which is insufficient for PyTorch.
+1. **Deployment packages** (.zip) - 250MB unzipped limit
+2. **Container images** - 10GB uncompressed limit
 
-## Files
+Athenaeum requires ~2GB for PyTorch + ML dependencies:
+- PyTorch (CPU-only): ~900MB
+- Transformers + sentence-transformers: ~600MB
+- FAISS + LlamaIndex: ~300MB
+- FastAPI + dependencies: ~200MB
 
-- **Dockerfile** - Multi-stage build for Lambda container with PyTorch
-- **requirements.txt** - Python dependencies for the container
-- **lambda_handler.py** - Handler for downloading index from S3 on cold start
-- **run.sh** - Startup script for Lambda Web Adapter
-- **oauth_authorizer.py** - Optional OAuth/JWT authorizer for API Gateway
+Container images are the only viable option.
+
+## Deployment Approaches
+
+### Approach 1: Baked-In Index (Recommended)
+
+**Benefits:**
+- ✅ Zero cold start latency (no S3 download)
+- ✅ Simpler architecture (no S3 bucket)
+- ✅ Cost savings (no S3 storage/transfer)
+- ✅ Easier versioning (index tied to deployment)
+
+**Your Dockerfile:**
+```dockerfile
+FROM public.ecr.aws/lambda/python:3.12
+
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
+
+WORKDIR /var/task
+
+# Install PyTorch CPU-only
+RUN pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch
+
+# Install dependencies
+COPY deployment/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install athenaeum (or pip install athenaeum when published)
+RUN pip install --no-cache-dir athenaeum
+
+# Bake index into image
+COPY index/ /var/task/index
+
+# Startup script
+COPY deployment/run.sh /var/task/
+RUN chmod +x /var/task/run.sh
+
+ENV PORT=8080
+ENV AWS_LWA_INVOKE_MODE=buffered
+
+ENTRYPOINT ["/var/task/run.sh"]
+```
+
+**CDK deployment:**
+```python
+from aws_cdk import Stack, CfnOutput, Duration
+from athenaeum.infra import MCPServerContainerConstruct
+
+server = MCPServerContainerConstruct(
+    stack, "Server",
+    dockerfile_path="./Dockerfile",
+    docker_build_context=".",
+    index_path=None,  # Index baked into Docker image
+    environment={"OPENAI_API_KEY": os.environ["OPENAI_API_KEY"]},
+    memory_size=2048,
+    timeout=Duration.minutes(5),
+)
+```
+
+### Approach 2: S3 Download (Legacy, Not Recommended)
+
+Index stored in S3, downloaded to `/tmp` on cold start.
+
+**Downsides:**
+- ❌ Adds 5-30s to cold start
+- ❌ Requires S3 bucket + IAM permissions
+- ❌ More complex architecture
+
+See `lambda_handler.py` for reference implementation.
 
 ## Architecture
 
 ```
 User Request
     ↓
-API Gateway (with CORS)
+API Gateway (REST API with CORS)
     ↓
-Lambda Container (Docker)
-    ├── Lambda Web Adapter (converts APIGW → HTTP)
+Lambda Container (Docker image)
+    ├── Lambda Web Adapter (event → HTTP conversion)
     ├── uvicorn (ASGI server)
     ├── FastAPI (athenaeum.mcp_server:app)
-    └── Index loaded from S3 → /tmp/index
+    └── Index at /var/task/index
 ```
 
-## Environment Variables
+**Lambda Web Adapter:**
+- AWS's official tool for running web apps on Lambda
+- Converts Lambda events ↔ HTTP requests/responses
+- Supports buffered and streaming modes
+- Zero code changes to FastAPI
 
-Required in Lambda:
-- `OPENAI_API_KEY` - For LLM chat (or use AWS Bedrock)
-- `INDEX_BUCKET` - S3 bucket containing the index (optional, set by CDK)
-- `INDEX_KEY` - S3 key prefix for index files (optional, set by CDK)
+**Configuration:**
+- `AWS_LWA_INVOKE_MODE=buffered` - Use buffered mode for API Gateway REST API
+- `PORT=8080` - Port for uvicorn server
 
-Optional:
-- `PORT` - Port for uvicorn (default: 8080)
-- `AWS_LWA_INVOKE_MODE` - Lambda Web Adapter mode (default: response_stream)
+## Dockerfile Explained
 
-## CDK Usage
+The template Dockerfile is optimized for Lambda deployment:
 
-### Using MCPServerContainerConstruct
+```dockerfile
+# Lambda Python 3.12 base (includes AWS Lambda runtime)
+FROM public.ecr.aws/lambda/python:3.12
+
+# Install Lambda Web Adapter as Lambda Extension
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.8.4 /lambda-adapter /opt/extensions/lambda-adapter
+
+WORKDIR /var/task
+
+# Install PyTorch CPU-only first (largest dependency, cache separately)
+# CPU-only saves ~800MB vs GPU version
+RUN pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch
+
+# Install application dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install/copy athenaeum
+# Production: RUN pip install athenaeum
+# Development: COPY src code
+COPY src/athenaeum /var/task/athenaeum
+
+# Startup script (must use ENTRYPOINT for shell scripts)
+COPY run.sh /var/task/
+RUN chmod +x /var/task/run.sh
+
+ENV AWS_LWA_INVOKE_MODE=buffered
+ENTRYPOINT ["/var/task/run.sh"]
+```
+
+**Layer caching optimization:**
+1. PyTorch first (largest, changes rarely)
+2. Requirements (changes occasionally)  
+3. Application code (changes frequently)
+
+## Customization
+
+### Change Memory/Timeout
 
 ```python
-from aws_cdk import Stack
-from athenaeum.infra import MCPServerContainerConstruct
-import os
-
-class MyStack(Stack):
-    def __init__(self, scope, construct_id, **kwargs):
-        super().__init__(scope, construct_id, **kwargs)
-        
-        server = MCPServerContainerConstruct(
-            self, "AthenaeumServer",
-            # Optional: custom Dockerfile
-            # dockerfile_path="/path/to/custom/Dockerfile",
-            # docker_build_context="/path/to/athenaeum",
-            
-            # Index will be uploaded to S3 and downloaded on Lambda cold start
-            index_path="/path/to/your/index",
-            
-            # Environment variables
-            environment={
-                "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
-            },
-            
-            # Lambda configuration
-            memory_size=2048,  # 2GB for ML workloads
-            timeout=Duration.minutes(5),
-        )
-        
-        # Output the API URL
-        CfnOutput(self, "ApiUrl", value=server.api_url)
+server = MCPServerContainerConstruct(
+    stack, "Server",
+    memory_size=4096,  # 4GB for larger models
+    timeout=Duration.minutes(10),
+)
 ```
 
-### Building Locally
+### Change Embedding Model
 
-To test the Docker build locally:
-
+Edit your index building:
 ```bash
-cd /path/to/athenaeum
-docker build -f examples/deployment/Dockerfile -t athenaeum-lambda .
-docker run -p 8080:8080 \
-  -e OPENAI_API_KEY=your-key \
-  -e INDEX_DIR=/var/task/index \
-  athenaeum-lambda
+athenaeum index ./docs \
+  --embed-model "sentence-transformers/all-mpnet-base-v2" \
+  --output ./index
 ```
 
-## Deployment
+### Add Dependencies
 
-1. **Set up your index**:
-   ```bash
-   athenaeum index /path/to/markdown/files --output /path/to/index
-   ```
-
-2. **Configure environment**:
-   ```bash
-   export OPENAI_API_KEY=sk-...
-   export CDK_DEFAULT_ACCOUNT=123456789012
-   export CDK_DEFAULT_REGION=us-east-1
-   ```
-
-3. **Deploy with CDK**:
-   ```bash
-   cd your-cdk-project
-   cdk deploy
-   ```
-
-4. **Test the endpoint**:
-   ```bash
-   curl -X POST https://your-api-url/chat \
-     -H "Content-Type: application/json" \
-     -d '{"question": "What is this knowledge base about?"}'
-   ```
-
-## Cost Considerations
-
-- **Lambda**: Pay per request + duration (GB-seconds)
-  - 2GB memory, 5-minute timeout max
-  - Cold start: ~10-20 seconds (loading PyTorch + index)
-  - Warm requests: ~1-2 seconds
-  
-- **S3**: Storage for index (typically < 100MB)
-  - Negligible cost for small indexes
-  
-- **API Gateway**: Pay per request
-  - Free tier: 1M requests/month
-
-- **OpenAI API**: Pay per token
-  - gpt-4o-mini: ~$0.15 per 1M input tokens
-
-**Optimization Tips**:
-- Use provisioned concurrency to avoid cold starts (costs more but faster)
-- Cache frequently asked questions in DynamoDB
-- Use reserved Lambda concurrency to control costs
+Edit `requirements.txt`:
+```txt
+# Your additional dependencies
+langchain>=0.1.0
+```
 
 ## Troubleshooting
 
-### Container build fails
-- Check Docker daemon is running
-- Ensure sufficient disk space (PyTorch is large)
-- Try `docker system prune` to free space
+### Build Fails - Out of Space
 
-### Lambda timeout
-- Increase timeout in construct (max 15 minutes)
-- Check CloudWatch logs for slow operations
-- Consider increasing memory (faster CPU)
-
-### Out of memory
-- Increase memory_size in construct
-- PyTorch CPU uses ~1GB, allow 2GB+ total
-- Check ephemeral_storage_size if index is large
-
-### Index not found
-- Verify INDEX_BUCKET and INDEX_KEY are set
-- Check S3 bucket permissions
-- Review CloudWatch logs for download errors
-
-## Migration from Layer-Based Deployment
-
-If you were using `MCPServerConstruct` with `DependenciesLayerConstruct`:
-
-**Before**:
-```python
-deps = DependenciesLayerConstruct(self, "Deps", ...)
-server = MCPServerConstruct(self, "Server", dependencies_layer=deps.layer, ...)
+Docker build context too large:
+```bash
+# Verify .dockerignore excludes .venv, cdk.out
+cat .dockerignore | grep venv
 ```
 
-**After**:
-```python
-server = MCPServerContainerConstruct(self, "Server", ...)
+### Lambda 500 Error
+
+Check CloudWatch Logs:
+```bash
+aws logs tail /aws/lambda/YourStack-ServerFunction-xxx --since 5m
 ```
 
-The container-based approach is simpler and supports the full dependency stack.
+Common issues:
+- Missing `/var/task/index`
+- OPENAI_API_KEY not set
+- Memory too low (increase to 2048MB+)
+
+### Container Too Large (>10GB)
+
+```bash
+# Check image size
+docker images
+
+# Optimize:
+# 1. Use PyTorch CPU-only
+# 2. Remove unnecessary dependencies
+# 3. Multi-stage build to exclude build tools
+```
+
+## Cost Estimate
+
+**Lambda:**
+- 2GB memory, 2s avg duration
+- 10,000 requests/month
+- ~$0.50/month
+
+**API Gateway:**
+- 10,000 requests/month
+- ~$0.035/month
+
+**ECR:**
+- 2GB image storage
+- ~$0.20/month
+
+**OpenAI API:**
+- gpt-4o-mini at $0.15/1M tokens
+- Variable based on usage
+
+**Total:** ~$1-2/month for moderate usage
+
+## Further Reading
+
+- [AWS Lambda Container Images](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html)
+- [Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter)
+- [AWS CDK Python](https://docs.aws.amazon.com/cdk/api/v2/python/)
+

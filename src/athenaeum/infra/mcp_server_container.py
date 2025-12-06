@@ -84,7 +84,7 @@ class MCPServerContainerConstruct(Construct):
             construct_id: Construct ID
             dockerfile_path: Path to Dockerfile (default: athenaeum/examples/deployment/Dockerfile)
             docker_build_context: Path to Docker build context (default: athenaeum root)
-            index_path: Path to vector index directory (creates S3 bucket if provided)
+            index_path: Path to vector index directory (creates S3 bucket if provided, or None to bake into image)
             environment: Environment variables for Lambda
             memory_size: Lambda memory in MB (default: 2048 for ML workloads)
             ephemeral_storage_size: Lambda ephemeral storage in MB (default: 512)

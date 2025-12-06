@@ -110,7 +110,47 @@ uv run athenaeum serve --index ./index --reload
 
 ## AWS Lambda Deployment
 
-Athenaeum uses **Docker container images** for Lambda deployment to support the full ML stack including PyTorch and sentence-transformers.
+Athenaeum provides example deployment configurations for AWS Lambda using **Docker container images** (required for PyTorch + ML dependencies).
+
+### Two Deployment Approaches
+
+#### 1. **Application-Specific Deployment** (Recommended)
+Your application has its own Dockerfile that:
+- Installs `athenaeum` as a dependency (from PyPI)
+- Copies your application-specific index into the container image
+- Configures application-specific settings
+
+**This is the recommended approach.** See `examples/deployment/README.md` for:
+- Complete Dockerfile template
+- Step-by-step customization guide
+- CDK deployment example
+- Production best practices
+
+**Benefits:**
+- Index baked into Docker image (no S3 download latency)
+- Simpler architecture (no S3 bucket needed)
+- Faster cold starts
+- Easier to version and deploy
+
+#### 2. **Example Template Deployment**
+Athenaeum includes complete example deployment files in `examples/deployment/`:
+- `Dockerfile` - Reference implementation
+- `requirements.txt` - Lambda dependencies
+- `run.sh` - Lambda Web Adapter startup script
+- `.dockerignore` - Build optimization
+
+**Use the template**:
+```bash
+# Copy the template to your project
+cp -r athenaeum/examples/deployment/* my-project/
+
+# Customize for your needs:
+# - Add your index: COPY index/ /var/task/index
+# - Update requirements if needed
+# - Modify environment variables
+```
+
+### Quick Start with CDK
 
 ```python
 from aws_cdk import Stack, CfnOutput, Duration
@@ -123,7 +163,9 @@ class MyStack(Stack):
         
         server = MCPServerContainerConstruct(
             self, "Server",
-            index_path="/path/to/your/index",
+            dockerfile_path="./Dockerfile",      # Your Dockerfile
+            docker_build_context=".",             # Build from current dir
+            index_path=None,                      # Index baked into image
             environment={
                 "OPENAI_API_KEY": os.environ["OPENAI_API_KEY"],
             },
@@ -140,14 +182,26 @@ export OPENAI_API_KEY=sk-...
 cdk deploy
 ```
 
-**What you get:**
-- Lambda function running FastAPI + Lambda Web Adapter
-- API Gateway with OAuth JWT authentication
-- S3 storage for large indices
-- Auto-scaling serverless infrastructure
-- **Cost:** ~$1-2/month for 10K requests with 2GB index
+### Deployment Architecture
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for complete instructions including OAuth setup, troubleshooting, and ChatGPT integration.
+**Container Image Approach:**
+- Lambda function with Docker container (up to 10GB)
+- Index baked into image at `/var/task/index`
+- FastAPI + Lambda Web Adapter for HTTP handling
+- API Gateway REST API with CORS
+- CloudWatch Logs for monitoring
+
+**Resource Limits:**
+- Docker image: 10GB uncompressed, 10GB compressed in ECR
+- Lambda memory: 128MB - 10GB (recommend 2GB for ML)
+- Lambda storage: /tmp up to 10GB (ephemeral)
+- Timeout: Up to 15 minutes (recommend 5 minutes)
+
+**Cost Estimate:** ~$1-2/month for 10K requests with 2GB memory and 10MB index
+
+**Complete guides:**
+- [`examples/deployment/README.md`](examples/deployment/README.md) - Deployment template and instructions
+- [`examples/README.md`](examples/README.md) - Examples overview
 
 ## MCP Server API
 
@@ -260,28 +314,6 @@ Generate an answer using RAG
 }
 ```
 
-## Testing
-
-Run the comprehensive test suite (12 tests):
-
-```bash
-# Run all tests
-uv run pytest tests/ -v
-
-# Run specific test file
-uv run pytest tests/test_indexer.py -v
-
-# Run with coverage
-uv run pytest tests/ --cov=athenaeum --cov-report=html
-```
-
-**Test Coverage:**
-- ✅ CLI commands (version, index)
-- ✅ Utils (setup_settings)
-- ✅ Indexer (build_index with various scenarios)
-- ✅ Retriever (query_index, retrieve_context)
-- ✅ MCP Server (all HTTP endpoints)
-
 ## Project Structure
 
 The codebase is organized by concern with clear separation between indexing, retrieval, and interface layers:
@@ -367,21 +399,13 @@ Athenaeum uses LlamaIndex's `MarkdownNodeParser` for structure-aware chunking th
 
 See [MARKDOWN_INDEXING_BEST_PRACTICES.md](MARKDOWN_INDEXING_BEST_PRACTICES.md) for detailed guidance on optimizing markdown documents for RAG.
 
-## Development
+## Contributing
 
-```bash
-# Install development dependencies
-uv sync --all-extras
-
-# Run tests with coverage
-uv run pytest tests/ --cov=athenaeum --cov-report=term-missing
-
-# Format code
-uv run black src/ tests/
-
-# Type checking
-uv run mypy src/
-```
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Development setup and workflow
+- Running tests and code quality checks
+- Code style guidelines
+- Pull request process
 
 ## License
 

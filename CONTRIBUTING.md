@@ -39,15 +39,30 @@ Thank you for your interest in contributing to Athenaeum! This document provides
 
 ### Running Tests
 
-Run the test suite:
+Run the comprehensive test suite:
+
 ```bash
-pytest
+# Run all tests
+uv run pytest tests/ -v
+
+# Run specific test file
+uv run pytest tests/test_indexer.py -v
+
+# Run with coverage report
+uv run pytest tests/ --cov=athenaeum --cov-report=term-missing
+
+# Run with HTML coverage report
+uv run pytest tests/ --cov=athenaeum --cov-report=html
 ```
 
-Run with coverage:
-```bash
-pytest --cov=athenaeum --cov-report=term-missing
-```
+**Current test coverage:**
+- CLI commands (version, index)
+- Utils (setup_settings)
+- Indexer (build_index with various scenarios)
+- Retriever (query_index, retrieve_context)
+- MCP Server (all HTTP endpoints)
+
+**Aim for >80% coverage on new code.**
 
 ### Code Quality
 
@@ -65,10 +80,10 @@ pre-commit run --all-files
 
 Run individual tools:
 ```bash
-ruff check .           # Lint
-ruff format .          # Format
-mypy src/athenaeum     # Type check
-bandit -r src/athenaeum  # Security scan
+uv run ruff check .           # Lint
+uv run ruff format .          # Format
+uv run mypy src/athenaeum     # Type check
+uv run bandit -r src/athenaeum  # Security scan
 ```
 
 ### Pre-commit Hooks
@@ -161,39 +176,45 @@ def index_documents(
 ```
 athenaeum/
 ├── src/athenaeum/         # Main package
-│   ├── infra/             # CDK constructs
-│   ├── indexer/           # Indexing logic
-│   ├── retriever/         # Retrieval logic
-│   ├── mcp_server/        # MCP server implementation
-│   └── main_cli.py        # CLI entry point
+│   ├── infra/             # CDK constructs (MCPServerContainerConstruct)
+│   ├── indexer.py         # Indexing logic
+│   ├── retriever.py       # Retrieval logic
+│   ├── mcp_server.py      # FastAPI MCP server
+│   ├── main_cli.py        # CLI entry point
+│   └── utils.py           # Shared utilities
 ├── tests/                 # Test suite
-├── examples/              # Example CDK applications
-└── docs/                  # Additional documentation
+│   ├── test_indexer.py
+│   ├── test_retriever.py
+│   ├── test_mcp_server.py
+│   └── test_cli.py
+├── examples/              # Deployment templates and examples
+│   └── deployment/        # Lambda container deployment template
+└── docs/                  # Additional documentation (if needed)
 ```
 
 ## Documentation
 
 - Update README.md for user-facing changes
-- Update DEPLOYMENT.md for infrastructure changes
+- Update examples/deployment/README.md for deployment changes
 - Add docstrings to new functions and classes
 - Update CHANGELOG.md with notable changes
+- Keep documentation minimal and well-organized
 
 ## AWS/CDK Development
 
 When working on CDK constructs:
 
-1. Test locally before deploying:
+1. Test CDK synthesis locally:
    ```bash
    cd examples
    cdk synth
    ```
 
-2. Use `--hotswap` for fast code-only deploys:
-   ```bash
-   cdk deploy --hotswap
-   ```
+2. Test with a real deployment in a separate project (like nomikos)
 
 3. Follow L3 construct patterns (see `src/athenaeum/infra/`)
+
+4. Document construct parameters clearly in docstrings
 
 ## Release Process
 

@@ -1,6 +1,10 @@
 # Dockerfile for Athenaeum Lambda Container
 # Supports PyTorch + sentence-transformers for embeddings
 # Uses AWS Lambda Python 3.12 base image with Lambda Web Adapter
+# 
+# Build args allow flexible build context (athenaeum root or parent directory)
+# ATHENAEUM_PATH: Path to athenaeum root (default: . for building from athenaeum)
+# INDEX_PATH: Path to index directory (default: index)
 
 FROM public.ecr.aws/lambda/python:3.12
 
@@ -15,23 +19,29 @@ RUN pip install --no-cache-dir \
     --index-url https://download.pytorch.org/whl/cpu \
     torch
 
+# Build args for flexible source locations
+ARG ATHENAEUM_PATH=.
+ARG INDEX_PATH=index
+
 # Copy and install Python dependencies
-COPY examples/deployment/requirements.txt ./requirements.txt
+COPY ${ATHENAEUM_PATH}/examples/deployment/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy athenaeum source code and install package
-COPY src/athenaeum /var/task/athenaeum
-COPY pyproject.toml /var/task/
-RUN pip install --no-cache-dir .
+# Copy athenaeum source code directly (no package install needed)
+# All dependencies are already in requirements.txt
+COPY ${ATHENAEUM_PATH}/src/athenaeum /var/task/athenaeum
 
-# Copy Lambda handler and startup script
-COPY examples/deployment/lambda_handler.py /var/task/
-COPY examples/deployment/run.sh /var/task/
+# Copy the index into the image for instant access (no S3 download needed)
+COPY ${INDEX_PATH} /var/task/index
+
+# Copy startup script (no lambda_handler.py needed - index is baked in)
+COPY ${ATHENAEUM_PATH}/examples/deployment/run.sh /var/task/
 RUN chmod +x /var/task/run.sh
 
 # Set Lambda environment
 ENV PORT=8080
-ENV AWS_LWA_INVOKE_MODE=response_stream
+# Use buffered mode instead of response_stream for API Gateway REST API compatibility
+ENV AWS_LWA_INVOKE_MODE=buffered
 
-# Lambda Web Adapter will call this script
-CMD ["/var/task/run.sh"]
+# Use ENTRYPOINT for the shell script - CMD doesn't work for shell scripts in Lambda
+ENTRYPOINT ["/var/task/run.sh"]

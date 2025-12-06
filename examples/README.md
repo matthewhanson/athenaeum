@@ -1,117 +1,108 @@
-# Deployment Examples
+# Athenaeum Examples
 
-This directory contains **example** deployment configurations. Copy and customize for your specific use case.
+Example deployment configurations and reference implementations for Athenaeum.
 
 ## Directory Structure
 
 ```
 examples/
-├── deployment/           # Lambda handler and authorizer
-├── cdk/                  # AWS CDK infrastructure code
-├── cdk.json             # CDK configuration
-└── deploy.sh            # Deployment script
+├── deployment/          # Lambda container deployment template
+│   ├── Dockerfile       # Example Dockerfile for Lambda
+│   ├── requirements.txt # Lambda dependencies
+│   ├── run.sh          # Lambda Web Adapter startup
+│   └── README.md       # Complete deployment guide
+└── simple-deployment/   # (If exists) Simplified deployment example
 ```
+
+## Quick Links
+
+- **[deployment/](deployment/)** - Complete Lambda container deployment template
+  - Docker container image approach (recommended for ML workloads)
+  - Supports PyTorch + full ML stack
+  - Reference Dockerfile and deployment guide
+  - See [deployment/README.md](deployment/README.md) for complete instructions
 
 ## Using These Examples
 
-### For a New Project (like Nomikos)
+### For Your Own Application
 
-1. **Copy to your project:**
-   ```bash
-   cp -r examples/deployment/ ../your-project/
-   cp -r examples/cdk/ ../your-project/
-   cp examples/cdk.json ../your-project/
-   ```
-
-2. **Customize the CDK stack:**
-   - Update stack name (e.g., "AtheneumStack" → "NomikosStack")
-   - Update bucket names (e.g., `athenaeum-index` → `nomikos-index`)
-   - Update environment variables
-   - Adjust Lambda settings (memory, timeout, etc.)
-
-3. **Update cdk/app.py:**
-   - Import your renamed stack
-   - Update stack name and description
-
-4. **Deploy:**
-   ```bash
-   cd your-project
-   export CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-   export CDK_DEFAULT_REGION=us-east-1
-   cdk bootstrap  # First time only
-   cdk deploy
-   ```
-
-## What You Need to Customize
-
-### Lambda Handler (`deployment/lambda_handler.py`)
-- `ATHENAEUM_INDEX_BUCKET` → Your bucket name
-- `ATHENAEUM_INDEX_DIR` → Your index path
-
-### CDK Stack (`cdk/stacks/athenaeum_stack.py`)
-- Class name: `AtheneumStack` → `YourStack`
-- Bucket name: `athenaeum-index-{account}` → `your-app-index-{account}`
-- Stack description
-- Environment variables
-- Resource names/IDs
-
-### CDK App (`cdk/app.py`)
-- Import statement
-- Stack name
-- Description
-
-### OAuth (if using)
-Set context in `cdk.json`:
-```json
-{
-  "context": {
-    "oauth_issuer": "https://your-issuer.com",
-    "oauth_audience": "your-audience",
-    "oauth_jwks_url": "https://your-issuer.com/.well-known/jwks.json"
-  }
-}
-```
-
-## Local Testing
-
-Before deploying, test locally:
+**Recommended approach:** Copy the deployment template and customize:
 
 ```bash
-# Build index
-athenaeum index /path/to/markdown --output ./index
+# Copy deployment template to your project
+cp -r athenaeum/examples/deployment ./deployment
 
-# Run FastAPI locally
-export ATHENAEUM_INDEX_DIR=./index
-uvicorn athenaeum.mcp_server:app --reload
+# Customize your Dockerfile to include your index
+cat >> Dockerfile <<'EOF'
+# Bake your index into the image
+COPY index/ /var/task/index
+EOF
 ```
 
-## Architecture
+**See `deployment/README.md` for complete template documentation and examples.**
+
+### Structure Your Application
 
 ```
-API Gateway (with OAuth)
-    ↓
-Lambda Function (Python 3.12)
-    ↓
-S3 Bucket (index files)
+your-application/
+├── Dockerfile           # Based on examples/deployment/Dockerfile
+├── deployment/
+│   ├── requirements.txt
+│   └── run.sh
+├── index/              # Your vector index (baked into image)
+└── cdk/
+    └── app.py          # CDK deployment
 ```
 
-The Lambda function:
-1. Downloads index from S3 on cold start
-2. Serves FastAPI via Lambda Web Adapter
-3. Handles RAG queries using athenaeum library
+## Deployment Approaches
 
-## Cost Estimates
+### 1. Baked-In Index (Recommended)
 
-**Development:**
-- Lambda: Free tier (1M requests/month)
-- S3: ~$0.023/GB/month
-- API Gateway: Free tier (1M requests/month)
+Index is included in the Docker image:
+- ✅ Zero cold start latency
+- ✅ No S3 bucket needed
+- ✅ Simpler architecture
+- ✅ Lower costs
 
-**Production (light usage):**
-- ~$5-10/month for typical use
+See [deployment/README.md](deployment/README.md) for details.
 
-## Next Steps
+### 2. S3 Download (Legacy)
 
-See specific project examples:
-- **Nomikos**: RPG documentation knowledge base (coming soon)
-- **Your Project**: Copy and customize these templates
+Index downloaded from S3 on cold start:
+- ⚠️ Slower cold starts (5-30s)
+- ⚠️ Requires S3 bucket + IAM
+- ⚠️ More complex
+
+Only use if index is too large (>8GB) for container images.
+
+## Quick Start
+
+1. **Build your index:**
+   ```bash
+   athenaeum index ./docs --output ./index
+   ```
+
+2. **Copy and customize template:**
+   ```bash
+   cp -r examples/deployment ./
+   # Edit Dockerfile to add your index
+   ```
+
+3. **Deploy with CDK:**
+   ```python
+   from athenaeum.infra import MCPServerContainerConstruct
+   
+   server = MCPServerContainerConstruct(
+       stack, "Server",
+       dockerfile_path="./Dockerfile",
+       docker_build_context=".",
+       index_path=None,  # Baked into image
+       environment={"OPENAI_API_KEY": os.environ["OPENAI_API_KEY"]},
+   )
+   ```
+
+## Further Reading
+
+- [deployment/README.md](deployment/README.md) - Complete deployment guide
+- [Main README.md](../README.md) - Athenaeum overview and usage
+- [AWS Lambda Container Images](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html)

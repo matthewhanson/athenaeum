@@ -40,8 +40,16 @@ class ChatRequest(BaseModel):
 
 
 def get_index_dir() -> Path:
-    """Get the index directory from environment variable or default."""
-    index_dir = Path(os.getenv("ATHENAEUM_INDEX_DIR", "./index"))
+    """Get the index directory from environment variable or default.
+    
+    In Lambda container deployment, index is baked into image at /var/task/index.
+    """
+    # Check env vars first, then default to Lambda container location
+    index_dir = Path(
+        os.getenv("INDEX_DIR") or 
+        os.getenv("ATHENAEUM_INDEX_DIR") or 
+        "/var/task/index"  # Default for Lambda container deployment
+    )
     if not index_dir.exists():
         raise FileNotFoundError(f"Index directory not found: {index_dir}")
     return index_dir
