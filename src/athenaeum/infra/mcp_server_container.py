@@ -131,7 +131,7 @@ class MCPServerContainerConstruct(Construct):
             # Method 3: Try to get from package metadata (for file:// installs)
             else:
                 try:
-                    dist = importlib.metadata.distribution('athenaeum')
+                    dist = importlib.metadata.distribution("athenaeum")
                     # For file:// installs via uv, check ../../athenaeum from site-packages
                     site_packages = Path(dist._path).parent.parent  # type: ignore[attr-defined]
                     potential_root = site_packages.parent.parent.parent / "athenaeum"

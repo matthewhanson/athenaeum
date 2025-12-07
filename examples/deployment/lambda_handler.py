@@ -32,4 +32,3 @@ def setup_environment():
 print("Lambda cold start - setting up environment...")
 setup_environment()
 print("Environment ready - uvicorn will start serving requests")
-

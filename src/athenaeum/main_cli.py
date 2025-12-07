@@ -156,7 +156,7 @@ def cmd_chat(
 @app.command("serve")
 def cmd_serve(
     index_dir: Path = typer.Option(Path("./index"), "--index", "-i", help="Index directory."),
-        host: str = typer.Option("0.0.0.0", "--host", help="Host to bind the server to."),  # noqa: S104
+    host: str = typer.Option("0.0.0.0", "--host", help="Host to bind the server to."),  # noqa: S104
     port: int = typer.Option(8000, "--port", "-p", help="Port to run the server on."),
     reload: bool = typer.Option(
         False, "--reload", help="Auto-reload on code changes (development)."
