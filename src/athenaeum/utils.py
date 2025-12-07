@@ -16,26 +16,26 @@ def setup_settings(
     chunk_size: int = 1024,
     chunk_overlap: int = 200,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-    llm_provider: str = "openai",
+    llm_provider: Optional[str] = None,
     llm_model: Optional[str] = None,
 ):
     """
     Configure LlamaIndex settings for markdown-aware embedding and text splitting.
     
     Uses sentence-transformers for embeddings (local, consistent).
-    LLM can be OpenAI, AWS Bedrock, or others.
+    LLM can be OpenAI, AWS Bedrock, or others (optional - only needed for chat/generation).
     
     Args:
         chunk_size: Size of text chunks for splitting
         chunk_overlap: Overlap between chunks
         embed_model: HuggingFace embedding model (default: sentence-transformers/all-MiniLM-L6-v2)
-        llm_provider: LLM provider - "openai", "bedrock", etc. (default: "openai")
+        llm_provider: LLM provider - "openai", "bedrock", etc. (default: None, only needed for chat)
         llm_model: Model name for the LLM provider
     """
     # Embeddings: Always use sentence-transformers for consistency
     Settings.embed_model = HuggingFaceEmbedding(model_name=embed_model)
     
-    # LLM: Support multiple providers
+    # LLM: Support multiple providers (optional, only needed for chat/generation)
     if llm_provider == "openai":
         from llama_index.llms.openai import OpenAI
         api_key = os.environ.get("OPENAI_API_KEY")
@@ -48,8 +48,9 @@ def setup_settings(
     elif llm_provider == "bedrock":
         from llama_index.llms.bedrock import Bedrock
         Settings.llm = Bedrock(model=llm_model or "anthropic.claude-v2")
-    else:
+    elif llm_provider is not None:
         raise ValueError(f"Unsupported LLM provider: {llm_provider}")
+    # If llm_provider is None, don't configure an LLM (search-only mode)
     
     Settings.node_parser = MarkdownNodeParser(
         chunk_size=chunk_size,
