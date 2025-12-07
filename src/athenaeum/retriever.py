@@ -5,9 +5,9 @@ Query and retrieval functions for the FAISS-backed index.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any
 
-from llama_index.core import load_index_from_storage, StorageContext
+from llama_index.core import StorageContext, load_index_from_storage
 from llama_index.vector_stores.faiss import FaissVectorStore
 
 from athenaeum.utils import setup_settings
@@ -43,13 +43,13 @@ def query_index(
     llm_provider: str = "openai",
     llm_model: str = "gpt-4o-mini",
     top_k: int = 5,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Query an existing index with a question and generate an answer.
-    
+
     Uses sentence-transformers for embeddings (must match indexing model).
     LLM provider can be OpenAI, AWS Bedrock, or others.
-    
+
     Args:
         index_dir: Path to the index directory
         question: The query to search for
@@ -57,14 +57,14 @@ def query_index(
         llm_provider: LLM provider - "openai", "bedrock", etc. (default: "openai")
         llm_model: Model name for the LLM provider (default: gpt-4o-mini for OpenAI)
         top_k: Number of results to return
-        
+
     Returns:
         Dict with 'answer' and 'sources' keys
     """
     setup_settings(embed_model=embed_model, llm_provider=llm_provider, llm_model=llm_model)
     storage_context = _load_index_storage(index_dir)
     index = load_index_from_storage(storage_context)
-    
+
     qe = index.as_query_engine(similarity_top_k=top_k)
     resp = qe.query(question)
 
@@ -73,10 +73,12 @@ def query_index(
     if hasattr(resp, "source_nodes") and resp.source_nodes:
         for n in resp.source_nodes:
             node = getattr(n, "node", n)
-            sources.append({
-                "path": (node.metadata or {}).get("source_path", "unknown"),
-                "score": getattr(n, "score", None),
-            })
+            sources.append(
+                {
+                    "path": (node.metadata or {}).get("source_path", "unknown"),
+                    "score": getattr(n, "score", None),
+                }
+            )
 
     return {"answer": str(resp), "sources": sources}
 
@@ -86,37 +88,39 @@ def retrieve_context(
     question: str,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
     top_k: int = 5,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Retrieve context chunks for a query without generating an answer.
-    
+
     Uses sentence-transformers for embeddings (must match indexing model).
-    
+
     Args:
         index_dir: Path to the index directory
         question: The query to search for
         embed_model: HuggingFace embedding model (default: sentence-transformers/all-MiniLM-L6-v2)
         top_k: Number of results to return
-        
+
     Returns:
         List of dicts with 'content' and 'metadata' keys
     """
     setup_settings(embed_model=embed_model)
     storage_context = _load_index_storage(index_dir)
     index = load_index_from_storage(storage_context)
-    
+
     retriever = index.as_retriever(similarity_top_k=top_k)
     nodes = retriever.retrieve(question)
-    
+
     # Extract context and metadata
     contexts = []
     for node in nodes:
-        contexts.append({
-            "content": node.get_content(),
-            "metadata": {
-                "path": (node.metadata or {}).get("source_path", "unknown"),
-                "score": getattr(node, "score", None),
+        contexts.append(
+            {
+                "content": node.get_content(),
+                "metadata": {
+                    "path": (node.metadata or {}).get("source_path", "unknown"),
+                    "score": getattr(node, "score", None),
+                },
             }
-        })
-        
+        )
+
     return contexts

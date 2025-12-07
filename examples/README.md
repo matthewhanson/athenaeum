@@ -59,6 +59,7 @@ your-application/
 ### 1. Baked-In Index (Recommended)
 
 Index is included in the Docker image:
+
 - ✅ Zero cold start latency
 - ✅ No S3 bucket needed
 - ✅ Simpler architecture
@@ -69,6 +70,7 @@ See [deployment/README.md](deployment/README.md) for details.
 ### 2. S3 Download (Legacy)
 
 Index downloaded from S3 on cold start:
+
 - ⚠️ Slower cold starts (5-30s)
 - ⚠️ Requires S3 bucket + IAM
 - ⚠️ More complex
@@ -78,20 +80,23 @@ Only use if index is too large (>8GB) for container images.
 ## Quick Start
 
 1. **Build your index:**
+
    ```bash
    athenaeum index ./docs --output ./index
    ```
 
 2. **Copy and customize template:**
+
    ```bash
    cp -r examples/deployment ./
    # Edit Dockerfile to add your index
    ```
 
 3. **Deploy with CDK:**
+
    ```python
    from athenaeum.infra import MCPServerContainerConstruct
-   
+
    server = MCPServerContainerConstruct(
        stack, "Server",
        dockerfile_path="./Dockerfile",

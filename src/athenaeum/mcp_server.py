@@ -6,10 +6,10 @@ from __future__ import annotations
 
 import os
 import time
-from typing import Dict, Any, List, Optional
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -19,7 +19,7 @@ from athenaeum.retriever import query_index, retrieve_context
 app = FastAPI(
     title="Athenaeum MCP Server",
     description="Give your LLM a library - An MCP-compatible API for document retrieval",
-    version="0.1.0"
+    version="0.1.0",
 )
 
 # Configure CORS to allow requests from browser-based clients
@@ -30,6 +30,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Models for API requests and responses
 class SearchRequest(BaseModel):
@@ -43,7 +44,7 @@ class ChatMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    messages: List[ChatMessage]
+    messages: list[ChatMessage]
     model: str = "gpt-4o-mini"
     temperature: float = 0.7
     max_tokens: int = 512
@@ -51,14 +52,14 @@ class ChatRequest(BaseModel):
 
 def get_index_dir() -> Path:
     """Get the index directory from environment variable or default.
-    
+
     In Lambda container deployment, index is baked into image at /var/task/index.
     """
     # Check env vars first, then default to Lambda container location
     index_dir = Path(
-        os.getenv("INDEX_DIR") or 
-        os.getenv("ATHENAEUM_INDEX_DIR") or 
-        "/var/task/index"  # Default for Lambda container deployment
+        os.getenv("INDEX_DIR")
+        or os.getenv("ATHENAEUM_INDEX_DIR")
+        or "/var/task/index"  # Default for Lambda container deployment
     )
     if not index_dir.exists():
         raise FileNotFoundError(f"Index directory not found: {index_dir}")
@@ -66,7 +67,7 @@ def get_index_dir() -> Path:
 
 
 @app.get("/")
-def landing_page() -> Dict[str, Any]:
+def landing_page() -> dict[str, Any]:
     """Landing page with API documentation and endpoint links."""
     return {
         "name": "Athenaeum MCP Server",
@@ -76,21 +77,17 @@ def landing_page() -> Dict[str, Any]:
             {
                 "path": "/health",
                 "method": "GET",
-                "description": "Health check endpoint to verify the server is running"
+                "description": "Health check endpoint to verify the server is running",
             },
-            {
-                "path": "/models",
-                "method": "GET",
-                "description": "List available models"
-            },
+            {"path": "/models", "method": "GET", "description": "List available models"},
             {
                 "path": "/search",
                 "method": "POST",
                 "description": "Search for context chunks matching a query for RAG applications",
                 "parameters": {
                     "query": "The search query string",
-                    "limit": "Number of results to return (default: 5)"
-                }
+                    "limit": "Number of results to return (default: 5)",
+                },
             },
             {
                 "path": "/chat",
@@ -100,23 +97,23 @@ def landing_page() -> Dict[str, Any]:
                     "messages": "Array of chat messages with role and content",
                     "model": "Model name (default: gpt-4o-mini)",
                     "temperature": "Sampling temperature (default: 0.7)",
-                    "max_tokens": "Maximum tokens in response (default: 512)"
-                }
-            }
+                    "max_tokens": "Maximum tokens in response (default: 512)",
+                },
+            },
         ],
         "documentation": "/docs",
-        "openapi": "/openapi.json"
+        "openapi": "/openapi.json",
     }
 
 
 @app.get("/health")
-def health_check() -> Dict[str, str]:
+def health_check() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
 
 
 @app.get("/models")
-def list_models() -> Dict[str, Any]:
+def list_models() -> dict[str, Any]:
     """List available models endpoint."""
     return {
         "object": "list",
@@ -125,48 +122,42 @@ def list_models() -> Dict[str, Any]:
                 "id": "athenaeum-index-retrieval",
                 "object": "model",
                 "created": int(time.time()),
-                "owned_by": "athenaeum"
+                "owned_by": "athenaeum",
             }
-        ]
+        ],
     }
 
 
 @app.post("/search")
-def search(request: SearchRequest, index_dir: Path = Depends(get_index_dir)) -> Dict[str, Any]:
+def search(request: SearchRequest, index_dir: Path = Depends(get_index_dir)) -> dict[str, Any]:
     """
     Search endpoint for RAG.
-    
+
     This endpoint returns context chunks matching the query for use in RAG applications.
     """
-    contexts = retrieve_context(
-        index_dir=index_dir,
-        question=request.query,
-        top_k=request.limit
-    )
-    
+    contexts = retrieve_context(index_dir=index_dir, question=request.query, top_k=request.limit)
+
     documents = []
     for ctx in contexts:
-        documents.append({
-            "id": ctx["metadata"]["path"],
-            "content": ctx["content"],
-            "metadata": ctx["metadata"]
-        })
-    
+        documents.append(
+            {"id": ctx["metadata"]["path"], "content": ctx["content"], "metadata": ctx["metadata"]}
+        )
+
     return {
         "object": "list",
         "data": documents,
         "model": "athenaeum-index-retrieval",
         "usage": {
             "total_tokens": 0  # Token counting not implemented
-        }
+        },
     }
 
 
 @app.post("/chat")
-def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> Dict[str, Any]:
+def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict[str, Any]:
     """
     Chat endpoint with RAG.
-    
+
     This endpoint performs RAG using the index and returns an answer.
     """
     # Extract user query from the last user message
@@ -175,21 +166,19 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> Dict
         if msg.role == "user":
             user_message = msg
             break
-    
+
     if not user_message:
-        return {
-            "error": "No user message found in the chat history"
-        }
-    
+        return {"error": "No user message found in the chat history"}
+
     # Query the index using OpenAI
     result = query_index(
         index_dir=index_dir,
         question=user_message.content,
         top_k=5,
         llm_provider="openai",
-        llm_model=request.model
+        llm_model=request.model,
     )
-    
+
     # Format as MCP response
     return {
         "id": f"chatcmpl-{int(time.time())}",
@@ -199,19 +188,9 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> Dict
         "choices": [
             {
                 "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": result["answer"]
-                },
-                "finish_reason": "stop"
+                "message": {"role": "assistant", "content": result["answer"]},
+                "finish_reason": "stop",
             }
         ],
-        "usage": {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0
-        }
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     }
-
-
-

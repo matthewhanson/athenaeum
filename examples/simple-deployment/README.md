@@ -74,16 +74,16 @@ server = MCPServerContainerConstruct(
     self,
     "Server",
     index_path=str(index_path) if index_path.exists() else None,
-    
+
     environment={
         "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
     },
-    
+
     # Adjust resources as needed
     memory_size=2048,  # 1024-10240 MB
     ephemeral_storage_size=512,  # /tmp storage
     timeout=Duration.minutes(5),  # 1s-15min
-    
+
     log_retention=logs.RetentionDays.ONE_WEEK,
     cors_allow_origins=["*"],  # Restrict in production!
 )
@@ -111,6 +111,7 @@ For light usage (~1000 requests/month):
 ## Next Steps
 
 1. **Test your deployment**:
+
    ```bash
    curl -X POST https://your-api-url/chat \
      -H "Content-Type: application/json" \
@@ -128,17 +129,20 @@ For light usage (~1000 requests/month):
 ## Troubleshooting
 
 ### "Docker daemon not running"
+
 ```bash
 # Start Docker Desktop
 ```
 
 ### "No index found"
+
 ```bash
 # Build an index first
 athenaeum index /path/to/docs --output ./index
 ```
 
 ### "OPENAI_API_KEY not set"
+
 ```bash
 export OPENAI_API_KEY=sk-your-key
 ```

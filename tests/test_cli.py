@@ -1,12 +1,15 @@
 from typer.testing import CliRunner
+
 from athenaeum.main_cli import app
 
 runner = CliRunner()
+
 
 def test_version_flag():
     res = runner.invoke(app, ["--version"])
     assert res.exit_code == 0
     assert res.stdout.strip()
+
 
 def test_index_creates_output(tmp_path):
     data = tmp_path / "file.txt"

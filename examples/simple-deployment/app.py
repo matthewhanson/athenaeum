@@ -4,7 +4,9 @@ Simple Athenaeum deployment example.
 
 This CDK app shows how to use Athenaeum's reusable infrastructure constructs.
 """
+
 import os
+
 from aws_cdk import App, Environment
 from stacks.simple_stack import SimpleAtheneumStack
 

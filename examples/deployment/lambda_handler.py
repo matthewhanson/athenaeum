@@ -4,6 +4,7 @@ Bootstrap script for Lambda Web Adapter.
 This module is imported at Lambda initialization time to prepare the environment.
 Lambda Web Adapter will then start the actual web server.
 """
+
 import os
 from pathlib import Path
 
@@ -11,20 +12,18 @@ from pathlib import Path
 def download_index():
     """Download index files from S3 to /tmp if needed."""
     import boto3
-    
+
     bucket_name = os.environ.get("INDEX_BUCKET")
-    index_key = os.environ.get("INDEX_KEY", "index/")
-    index_dir = Path("/tmp/index")
-    
-    if not bucket_name:
+        index_key = os.environ.get("INDEX_KEY", "index/")
+        index_dir = Path("/tmp/index")  # noqa: S108    if not bucket_name:
         print("No INDEX_BUCKET configured, skipping index download")
         return
-    
+
     # Always download on cold start - /tmp may be empty in new execution environment
     print(f"Downloading index from s3://{bucket_name}/{index_key} to {index_dir}")
     s3 = boto3.client("s3")
     index_dir.mkdir(parents=True, exist_ok=True)
-    
+
     try:
         # List and download all files from index/ prefix
         paginator = s3.get_paginator("list_objects_v2")
@@ -35,13 +34,13 @@ def download_index():
                 # Skip directory markers
                 if key.endswith("/"):
                     continue
-                
+
                 # Download to /tmp
                 local_path = index_dir / key.replace(index_key, "")
                 local_path.parent.mkdir(parents=True, exist_ok=True)
                 s3.download_file(bucket_name, key, str(local_path))
                 file_count += 1
-        
+
         # Set INDEX_DIR environment variable
         os.environ["INDEX_DIR"] = str(index_dir)
         print(f"Index downloaded successfully: {file_count} files to {index_dir}")

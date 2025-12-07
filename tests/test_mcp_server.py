@@ -1,12 +1,13 @@
 """
 Tests for the MCP server module.
 """
+
+from unittest.mock import patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
-from athenaeum.mcp_server import app, get_index_dir
+from athenaeum.mcp_server import app
 
 
 @pytest.fixture
@@ -21,20 +22,20 @@ def mock_index_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def client(mock_index_dir):
+def client(_mock_index_dir):  # noqa: ARG001
     # Create a test client for FastAPI (with mock index dir set)
     return TestClient(app)
 
 
 @patch("athenaeum.mcp_server.get_index_dir")
-def test_health_check(mock_dir, client):
+def test_health_check(_mock_dir, client):  # noqa: ARG001
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
 
 @patch("athenaeum.mcp_server.get_index_dir")
-def test_list_models(mock_dir, client):
+def test_list_models(_mock_dir, client):  # noqa: ARG001
     response = client.get("/models")
     assert response.status_code == 200
     assert response.json()["object"] == "list"
@@ -48,20 +49,14 @@ def test_mcp_search(mock_retrieve, mock_dir, client, mock_index_dir):
     # Setup mock
     mock_dir.return_value = mock_index_dir
     mock_retrieve.return_value = [
-        {
-            "content": "test content",
-            "metadata": {
-                "path": "doc1.txt",
-                "score": 0.9
-            }
-        }
+        {"content": "test content", "metadata": {"path": "doc1.txt", "score": 0.9}}
     ]
-    
+
     # Test endpoint
     response = client.post("/search", json={"query": "test", "limit": 1})
     assert response.status_code == 200
     result = response.json()
-    
+
     # Verify structure
     assert result["object"] == "list"
     assert len(result["data"]) == 1
@@ -77,17 +72,17 @@ def test_mcp_chat(mock_query, mock_dir, client, mock_index_dir):
     mock_dir.return_value = mock_index_dir
     mock_query.return_value = {
         "answer": "test answer",
-        "sources": [{"path": "doc1.txt", "score": 0.9}]
+        "sources": [{"path": "doc1.txt", "score": 0.9}],
     }
-    
+
     # Test endpoint
-    response = client.post("/chat", json={
-        "messages": [{"role": "user", "content": "test question"}],
-        "model": "test-model"
-    })
+    response = client.post(
+        "/chat",
+        json={"messages": [{"role": "user", "content": "test question"}], "model": "test-model"},
+    )
     assert response.status_code == 200
     result = response.json()
-    
+
     # Verify structure
     assert result["object"] == "chat.completion"
     assert result["model"] == "test-model"
@@ -104,18 +99,15 @@ def test_search_endpoint(mock_retrieve, mock_dir, client, mock_index_dir):
     mock_retrieve.return_value = [
         {
             "content": "a very long test content that should be truncated for the snippet",
-            "metadata": {
-                "path": "doc1.txt",
-                "score": 0.9
-            }
+            "metadata": {"path": "doc1.txt", "score": 0.9},
         }
     ]
-    
+
     # Test endpoint
     response = client.post("/search", json={"query": "test", "limit": 1})
     assert response.status_code == 200
     result = response.json()
-    
+
     # Verify structure
     assert result["object"] == "list"
     assert len(result["data"]) == 1

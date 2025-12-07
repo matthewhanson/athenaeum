@@ -5,22 +5,23 @@ Optimized for markdown documents with structure-aware parsing.
 
 from __future__ import annotations
 
-from typing import List, Optional, Dict, Any
-from pathlib import Path
+import contextlib
 from fnmatch import fnmatch
+from pathlib import Path
+from typing import Any
 
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageContext
-from llama_index.vector_stores.faiss import FaissVectorStore
 import faiss
+from llama_index.core import SimpleDirectoryReader, StorageContext, VectorStoreIndex
+from llama_index.vector_stores.faiss import FaissVectorStore
 
 from athenaeum.utils import setup_settings
-
 
 # ============================================================================
 # Index Building
 # ============================================================================
 
-def _validate_paths(inputs: List[Path]) -> List[Path]:
+
+def _validate_paths(inputs: list[Path]) -> list[Path]:
     """Validate that input paths exist."""
     paths = [p for p in inputs if p.exists()]
     if not paths:
@@ -33,7 +34,7 @@ def _build_document_reader(
     glob_include: list[str] | None,
     glob_exclude: list[str] | None,
     recursive: bool,
-    max_files: Optional[int],
+    max_files: int | None,
 ) -> SimpleDirectoryReader:
     """Build a SimpleDirectoryReader that respects include/exclude globs."""
     # Flatten directories and files into a list of paths
@@ -94,10 +95,8 @@ def _generate_stats(docs, index: VectorStoreIndex) -> dict:
     """Generate statistics about the indexed documents."""
     num_docs = len(docs)
     nodes_indexed = None
-    try:
+    with contextlib.suppress(Exception):
         nodes_indexed = sum(len(d.nodes) for d in index.docstore.docs.values())
-    except Exception:
-        pass
     return {
         "documents_ingested": num_docs,
         "index_summary": {"vector_store": "faiss", "nodes_indexed": nodes_indexed},
@@ -105,28 +104,28 @@ def _generate_stats(docs, index: VectorStoreIndex) -> dict:
 
 
 def build_index(
-    inputs: List[Path],
+    inputs: list[Path],
     index_dir: Path,
     chunk_size: int = 1024,
     chunk_overlap: int = 200,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
     llm_provider: str = "openai",
     llm_model: str = "gpt-4o-mini",
-    include: Optional[List[str]] = None,
-    exclude: Optional[List[str]] = None,
+    include: list[str] | None = None,
+    exclude: list[str] | None = None,
     recursive: bool = True,
-    max_files: Optional[int] = None,
+    max_files: int | None = None,
     return_stats: bool = True,
-) -> Dict[str, Any] | None:
+) -> dict[str, Any] | None:
     """
     Build/update a FAISS-backed index from markdown files.
-    
+
     Uses MarkdownNodeParser for structure-aware chunking that respects
     headings, code blocks, and other markdown elements.
-    
+
     Uses sentence-transformers for embeddings (local, consistent).
     LLM provider is configurable but only used during indexing for metadata.
-    
+
     Args:
         inputs: List of markdown file paths or directories to index
         index_dir: Directory to store the index
@@ -140,26 +139,26 @@ def build_index(
         recursive: Whether to search directories recursively
         max_files: Maximum number of files to index
         return_stats: Whether to return statistics
-        
+
     Returns:
         Stats dict if return_stats=True, else None
     """
     paths = _validate_paths(inputs)
-    setup_settings(chunk_size=chunk_size, chunk_overlap=chunk_overlap, embed_model=embed_model, llm_provider=llm_provider, llm_model=llm_model)
+    setup_settings(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        embed_model=embed_model,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+    )
 
     # Default to markdown files only
     if include is None:
         include = ["**/*.md", "**/*.markdown"]
 
-    reader = _build_document_reader(
-        paths, 
-        include, 
-        exclude or [], 
-        recursive, 
-        max_files
-    )
+    reader = _build_document_reader(paths, include, exclude or [], recursive, max_files)
     documents = reader.load_data()
-    
+
     if not documents:
         return {"warning": "No documents loaded after filtering."} if return_stats else None
 

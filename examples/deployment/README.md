@@ -6,7 +6,7 @@ This directory contains a **reference template** for deploying Athenaeum as an A
 
 - **`Dockerfile`** - Example Dockerfile optimized for Lambda with PyTorch CPU
 - **`requirements.txt`** - Python dependencies for Lambda runtime
-- **`run.sh`** - Lambda Web Adapter startup script  
+- **`run.sh`** - Lambda Web Adapter startup script
 - **`.dockerignore`** - Build optimization (excludes .venv, tests, etc.)
 - **`lambda_handler.py`** - *(Legacy)* S3 index download handler (not needed if index is baked in)
 - **`oauth_authorizer.py`** - *(Optional)* Lambda authorizer for OAuth/JWT
@@ -27,6 +27,7 @@ EOF
 ```
 
 **Your application structure:**
+
 ```
 my-application/
 ├── Dockerfile           # Based on template, customized
@@ -49,6 +50,7 @@ AWS Lambda has two deployment options:
 2. **Container images** - 10GB uncompressed limit
 
 Athenaeum requires ~2GB for PyTorch + ML dependencies:
+
 - PyTorch (CPU-only): ~900MB
 - Transformers + sentence-transformers: ~600MB
 - FAISS + LlamaIndex: ~300MB
@@ -61,12 +63,14 @@ Container images are the only viable option.
 ### Approach 1: Baked-In Index (Recommended)
 
 **Benefits:**
+
 - ✅ Zero cold start latency (no S3 download)
 - ✅ Simpler architecture (no S3 bucket)
 - ✅ Cost savings (no S3 storage/transfer)
 - ✅ Easier versioning (index tied to deployment)
 
 **Your Dockerfile:**
+
 ```dockerfile
 FROM public.ecr.aws/lambda/python:3.12
 
@@ -100,6 +104,7 @@ ENTRYPOINT ["/var/task/run.sh"]
 ```
 
 **CDK deployment:**
+
 ```python
 from aws_cdk import Stack, CfnOutput, Duration
 from athenaeum.infra import MCPServerContainerConstruct
@@ -120,6 +125,7 @@ server = MCPServerContainerConstruct(
 Index stored in S3, downloaded to `/tmp` on cold start.
 
 **Downsides:**
+
 - ❌ Adds 5-30s to cold start
 - ❌ Requires S3 bucket + IAM permissions
 - ❌ More complex architecture
@@ -141,12 +147,14 @@ Lambda Container (Docker image)
 ```
 
 **Lambda Web Adapter:**
+
 - AWS's official tool for running web apps on Lambda
 - Converts Lambda events ↔ HTTP requests/responses
 - Supports buffered and streaming modes
 - Zero code changes to FastAPI
 
 **Configuration:**
+
 - `AWS_LWA_INVOKE_MODE=buffered` - Use buffered mode for API Gateway REST API
 - `PORT=8080` - Port for uvicorn server
 
@@ -187,8 +195,9 @@ ENTRYPOINT ["/var/task/run.sh"]
 ```
 
 **Layer caching optimization:**
+
 1. PyTorch first (largest, changes rarely)
-2. Requirements (changes occasionally)  
+2. Requirements (changes occasionally)
 3. Application code (changes frequently)
 
 ## Customization
@@ -206,6 +215,7 @@ server = MCPServerContainerConstruct(
 ### Change Embedding Model
 
 Edit your index building:
+
 ```bash
 athenaeum index ./docs \
   --embed-model "sentence-transformers/all-mpnet-base-v2" \
@@ -215,6 +225,7 @@ athenaeum index ./docs \
 ### Add Dependencies
 
 Edit `requirements.txt`:
+
 ```txt
 # Your additional dependencies
 langchain>=0.1.0
@@ -225,6 +236,7 @@ langchain>=0.1.0
 ### Build Fails - Out of Space
 
 Docker build context too large:
+
 ```bash
 # Verify .dockerignore excludes .venv, cdk.out
 cat .dockerignore | grep venv
@@ -233,11 +245,13 @@ cat .dockerignore | grep venv
 ### Lambda 500 Error
 
 Check CloudWatch Logs:
+
 ```bash
 aws logs tail /aws/lambda/YourStack-ServerFunction-xxx --since 5m
 ```
 
 Common issues:
+
 - Missing `/var/task/index`
 - OPENAI_API_KEY not set
 - Memory too low (increase to 2048MB+)
@@ -257,19 +271,23 @@ docker images
 ## Cost Estimate
 
 **Lambda:**
+
 - 2GB memory, 2s avg duration
 - 10,000 requests/month
 - ~$0.50/month
 
 **API Gateway:**
+
 - 10,000 requests/month
 - ~$0.035/month
 
 **ECR:**
+
 - 2GB image storage
 - ~$0.20/month
 
 **OpenAI API:**
+
 - gpt-4o-mini at $0.15/1M tokens
 - Variable based on usage
 
@@ -280,4 +298,3 @@ docker images
 - [AWS Lambda Container Images](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html)
 - [Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter)
 - [AWS CDK Python](https://docs.aws.amazon.com/cdk/api/v2/python/)
-

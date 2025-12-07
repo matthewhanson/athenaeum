@@ -14,7 +14,7 @@ A RAG (Retrieval-Augmented Generation) system built with LlamaIndex and FastAPI 
 ## Features
 
 - **Markdown-Focused**: Optimized for indexing markdown documents with structure-aware parsing
-- **Vector Search**: FAISS-backed vector search using HuggingFace embeddings  
+- **Vector Search**: FAISS-backed vector search using HuggingFace embeddings
 - **MCP Server**: HTTP API with clean endpoints for retrieval and chat
 - **CLI Tools**: Build indices, query, and run the MCP server
 - **AWS Lambda Deployment**: Serverless deployment with CDK, OAuth authentication, and S3 index storage
@@ -115,31 +115,38 @@ Athenaeum provides example deployment configurations for AWS Lambda using **Dock
 ### Two Deployment Approaches
 
 #### 1. **Application-Specific Deployment** (Recommended)
+
 Your application has its own Dockerfile that:
+
 - Installs `athenaeum` as a dependency (from PyPI)
 - Copies your application-specific index into the container image
 - Configures application-specific settings
 
 **This is the recommended approach.** See `examples/deployment/README.md` for:
+
 - Complete Dockerfile template
 - Step-by-step customization guide
 - CDK deployment example
 - Production best practices
 
 **Benefits:**
+
 - Index baked into Docker image (no S3 download latency)
 - Simpler architecture (no S3 bucket needed)
 - Faster cold starts
 - Easier to version and deploy
 
 #### 2. **Example Template Deployment**
+
 Athenaeum includes complete example deployment files in `examples/deployment/`:
+
 - `Dockerfile` - Reference implementation
 - `requirements.txt` - Lambda dependencies
 - `run.sh` - Lambda Web Adapter startup script
 - `.dockerignore` - Build optimization
 
 **Use the template**:
+
 ```bash
 # Copy the template to your project
 cp -r athenaeum/examples/deployment/* my-project/
@@ -160,7 +167,7 @@ import os
 class MyStack(Stack):
     def __init__(self, scope, construct_id, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
-        
+
         server = MCPServerContainerConstruct(
             self, "Server",
             dockerfile_path="./Dockerfile",      # Your Dockerfile
@@ -172,11 +179,12 @@ class MyStack(Stack):
             memory_size=2048,  # 2GB for ML workloads
             timeout=Duration.minutes(5),
         )
-        
+
         CfnOutput(self, "ApiUrl", value=server.api_url)
 ```
 
 **Deploy:**
+
 ```bash
 export OPENAI_API_KEY=sk-...
 cdk deploy
@@ -185,6 +193,7 @@ cdk deploy
 ### Deployment Architecture
 
 **Container Image Approach:**
+
 - Lambda function with Docker container (up to 10GB)
 - Index baked into image at `/var/task/index`
 - FastAPI + Lambda Web Adapter for HTTP handling
@@ -192,6 +201,7 @@ cdk deploy
 - CloudWatch Logs for monitoring
 
 **Resource Limits:**
+
 - Docker image: 10GB uncompressed, 10GB compressed in ECR
 - Lambda memory: 128MB - 10GB (recommend 2GB for ML)
 - Lambda storage: /tmp up to 10GB (ephemeral)
@@ -200,6 +210,7 @@ cdk deploy
 **Cost Estimate:** ~$1-2/month for 10K requests with 2GB memory and 10MB index
 
 **Complete guides:**
+
 - [`examples/deployment/README.md`](examples/deployment/README.md) - Deployment template and instructions
 - [`examples/README.md`](examples/README.md) - Examples overview
 
@@ -210,9 +221,11 @@ The server provides clean HTTP endpoints (no `/v1` prefix) for RAG operations:
 ### Endpoints
 
 #### `GET /`
+
 Landing page with API documentation
 
 **Response:**
+
 ```json
 {
   "service": "Athenaeum MCP Server",
@@ -227,17 +240,21 @@ Landing page with API documentation
 ```
 
 #### `GET /health`
+
 Health check endpoint
 
 **Response:**
+
 ```json
 {"status": "healthy"}
 ```
 
 #### `GET /models`
+
 List available retrieval models
 
 **Response:**
+
 ```json
 {
   "object": "list",
@@ -253,9 +270,11 @@ List available retrieval models
 ```
 
 #### `POST /search`
+
 Search for context chunks matching a query
 
 **Request:**
+
 ```json
 {
   "query": "What are the key concepts?",
@@ -264,6 +283,7 @@ Search for context chunks matching a query
 ```
 
 **Response:**
+
 ```json
 {
   "object": "list",
@@ -282,9 +302,11 @@ Search for context chunks matching a query
 ```
 
 #### `POST /chat`
+
 Generate an answer using RAG
 
 **Request:**
+
 ```json
 {
   "messages": [
@@ -295,6 +317,7 @@ Generate an answer using RAG
 ```
 
 **Response:**
+
 ```json
 {
   "id": "chat-abc123",
@@ -388,12 +411,14 @@ export ATHENAEUM_INDEX_DIR="/path/to/index"
 ## Markdown Indexing
 
 Athenaeum uses LlamaIndex's `MarkdownNodeParser` for structure-aware chunking that respects:
+
 - Heading hierarchy
 - Code blocks
 - Tables
 - Blockquotes
 
 **Default chunk settings:**
+
 - Size: 1024 characters (~200 words)
 - Overlap: 200 characters
 
@@ -402,6 +427,7 @@ See [MARKDOWN_INDEXING_BEST_PRACTICES.md](MARKDOWN_INDEXING_BEST_PRACTICES.md) f
 ## Contributing
 
 We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+
 - Development setup and workflow
 - Running tests and code quality checks
 - Code style guidelines

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2024-12-07
 
 Initial release of Athenaeum - A markdown-focused RAG (Retrieval Augmented Generation) system with AWS Lambda deployment support.
+
 - Inline code documentation and type hints
 
 [Unreleased]: https://github.com/matthewhanson/athenaeum/compare/v0.1.0...HEAD

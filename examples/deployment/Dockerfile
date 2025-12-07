@@ -1,7 +1,7 @@
 # Dockerfile for Athenaeum Lambda Container
 # Supports PyTorch + sentence-transformers for embeddings
 # Uses AWS Lambda Python 3.12 base image with Lambda Web Adapter
-# 
+#
 # Build args allow flexible build context (athenaeum root or parent directory)
 # ATHENAEUM_PATH: Path to athenaeum root (default: . for building from athenaeum)
 # INDEX_PATH: Path to index directory (default: index)

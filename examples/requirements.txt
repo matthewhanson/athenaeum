@@ -15,7 +15,7 @@ llama-index-llms-openai>=0.6.4
 faiss-cpu>=1.7.4
 # NOTE: torch will be installed via CDK with CPU-only flag to avoid 7GB CUDA libraries
 # transformers will be installed separately with --no-deps
-# torch>=2.0.0  
+# torch>=2.0.0
 # transformers>=4.36
 
 # OAuth/JWT
@@ -24,4 +24,3 @@ requests>=2.31.0
 
 # AWS
 boto3>=1.28.0
-

@@ -13,17 +13,20 @@ Thank you for your interest in contributing to Athenaeum! This document provides
 ### Initial Setup
 
 1. Fork and clone the repository:
+
    ```bash
    git clone https://github.com/matthewhanson/athenaeum.git
    cd athenaeum
    ```
 
 2. Install uv (if not already installed):
+
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
 3. Create a virtual environment and install dependencies:
+
    ```bash
    uv venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
@@ -31,6 +34,7 @@ Thank you for your interest in contributing to Athenaeum! This document provides
    ```
 
 4. Install pre-commit hooks:
+
    ```bash
    pre-commit install
    ```
@@ -56,6 +60,7 @@ uv run pytest tests/ --cov=athenaeum --cov-report=html
 ```
 
 **Current test coverage:**
+
 - CLI commands (version, index)
 - Utils (setup_settings)
 - Indexer (build_index with various scenarios)
@@ -74,11 +79,13 @@ This project uses several tools to maintain code quality:
 - **pre-commit**: Automated checks before commits
 
 Run all checks manually:
+
 ```bash
 pre-commit run --all-files
 ```
 
 Run individual tools:
+
 ```bash
 uv run ruff check .           # Lint
 uv run ruff format .          # Format
@@ -89,6 +96,7 @@ uv run bandit -r src/athenaeum  # Security scan
 ### Pre-commit Hooks
 
 Pre-commit hooks will automatically run on every commit. They will:
+
 - Format code with ruff
 - Check for common issues (trailing whitespace, YAML syntax, etc.)
 - Validate type hints with mypy
@@ -109,6 +117,7 @@ If hooks fail, fix the issues and commit again.
 ### Commit Messages
 
 Follow conventional commits format:
+
 ```
 type(scope): brief description
 
@@ -120,6 +129,7 @@ Fixes #issue-number
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 Examples:
+
 - `feat(indexer): add support for PDF files`
 - `fix(mcp): handle authentication errors correctly`
 - `docs(readme): update installation instructions`
@@ -144,6 +154,7 @@ Examples:
 - Keep functions focused and single-purpose
 
 Example:
+
 ```python
 def index_documents(
     source_dir: str,
@@ -205,6 +216,7 @@ athenaeum/
 When working on CDK constructs:
 
 1. Test CDK synthesis locally:
+
    ```bash
    cd examples
    cdk synth
@@ -226,6 +238,7 @@ When working on CDK constructs:
 4. Tag release: `git tag v0.2.0`
 5. Push: `git push origin main --tags`
 6. Build and publish to PyPI:
+
    ```bash
    python -m build
    twine upload dist/*
