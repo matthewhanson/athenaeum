@@ -75,5 +75,5 @@ def test_build_index_no_documents(_mock_setup, mock_reader, mock_validate, tmp_p
 
     # Verify result contains warning
     assert result is not None
-    assert "warning" in result  # type: ignore[operator]
-    assert "No documents" in result["warning"]  # type: ignore[index]
+    assert "warning" in result
+    assert "No documents" in result["warning"]

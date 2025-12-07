@@ -12,8 +12,6 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 
 
 def setup_settings(
-    chunk_size: int = 1024,
-    chunk_overlap: int = 200,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
     llm_provider: str | None = None,
     llm_model: str | None = None,
@@ -22,11 +20,10 @@ def setup_settings(
     Configure LlamaIndex settings for markdown-aware embedding and text splitting.
 
     Uses sentence-transformers for embeddings (local, consistent).
+    Uses MarkdownNodeParser to preserve document structure and hierarchy.
     LLM can be OpenAI, AWS Bedrock, or others (optional - only needed for chat/generation).
 
     Args:
-        chunk_size: Size of text chunks for splitting
-        chunk_overlap: Overlap between chunks
         embed_model: HuggingFace embedding model (default: sentence-transformers/all-MiniLM-L6-v2)
         llm_provider: LLM provider - "openai", "bedrock", etc. (default: None, only needed for chat)
         llm_model: Model name for the LLM provider
@@ -53,7 +50,7 @@ def setup_settings(
         raise ValueError(f"Unsupported LLM provider: {llm_provider}")
     # If llm_provider is None, don't configure an LLM (search-only mode)
 
-    Settings.node_parser = MarkdownNodeParser(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-    )
+    # Use MarkdownNodeParser for well-structured markdown documents
+    # It preserves document hierarchy and splits by headers intelligently
+    # Note: chunk_size/chunk_overlap are not applicable to MarkdownNodeParser
+    Settings.node_parser = MarkdownNodeParser()

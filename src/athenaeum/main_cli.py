@@ -52,8 +52,6 @@ def cmd_index(
     embed_model: str = typer.Option(
         "sentence-transformers/all-MiniLM-L6-v2", help="HuggingFace embedding model."
     ),
-    chunk_size: int = typer.Option(1024, help="Chunk size for markdown parsing."),
-    chunk_overlap: int = typer.Option(200, help="Chunk overlap for markdown parsing."),
     include: list[str] = typer.Option(
         None,
         "--include",
@@ -79,8 +77,6 @@ def cmd_index(
         inputs=input_path,
         index_dir=output,
         embed_model=embed_model,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
         include=include,
         exclude=exclude,
         recursive=recursive,
