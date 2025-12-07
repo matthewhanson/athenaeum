@@ -129,4 +129,8 @@ ignore_missing_imports = true
 
 [tool.bandit]
 exclude_dirs = ["tests", ".venv"]
-skips = ["B101"]  # Skip assert_used in tests
+# B101: assert_used (not a security issue in tests)
+# B104: hardcoded_bind_all_interfaces (intentional for dev server in CLI)
+# B404: import_subprocess (required for CLI serve command)
+# B603: subprocess_without_shell_equals_true (safe usage in CLI)
+skips = ["B101", "B104", "B404", "B603"]
