@@ -59,6 +59,7 @@ def test_build_index(
     mock_stats.assert_called_once_with(["doc1", "doc2"], mock_index)
 
     # Check result
+    assert result is not None
     assert result["documents_ingested"] == 2
 
 

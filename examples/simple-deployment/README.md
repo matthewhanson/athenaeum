@@ -106,7 +106,9 @@ For light usage (~1000 requests/month):
 - **S3**: $0.10/month
 - **CloudWatch Logs**: $0.50/month
 
-**Total: ~$4-5/month**
+### Total Cost
+
+Approximately $4-5/month
 
 ## Next Steps
 

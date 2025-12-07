@@ -28,7 +28,7 @@ EOF
 
 **Your application structure:**
 
-```
+```text
 my-application/
 ├── Dockerfile           # Based on template, customized
 ├── deployment/
@@ -134,7 +134,7 @@ See `lambda_handler.py` for reference implementation.
 
 ## Architecture
 
-```
+```text
 User Request
     ↓
 API Gateway (REST API with CORS)

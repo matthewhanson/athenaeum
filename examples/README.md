@@ -4,7 +4,7 @@ Example deployment configurations and reference implementations for Athenaeum.
 
 ## Directory Structure
 
-```
+```text
 examples/
 ├── deployment/          # Lambda container deployment template
 │   ├── Dockerfile       # Example Dockerfile for Lambda
@@ -43,7 +43,7 @@ EOF
 
 ### Structure Your Application
 
-```
+```text
 your-application/
 ├── Dockerfile           # Based on examples/deployment/Dockerfile
 ├── deployment/

@@ -341,7 +341,7 @@ Generate an answer using RAG
 
 The codebase is organized by concern with clear separation between indexing, retrieval, and interface layers:
 
-```
+```text
 src/athenaeum/
 ├── utils.py              # Shared utilities (~22 lines)
 │   └── setup_settings() - Configure LlamaIndex with MarkdownNodeParser

@@ -118,7 +118,7 @@ If hooks fail, fix the issues and commit again.
 
 Follow conventional commits format:
 
-```
+```text
 type(scope): brief description
 
 Detailed explanation if needed.
@@ -184,7 +184,7 @@ def index_documents(
 
 ## Project Structure
 
-```
+```text
 athenaeum/
 ├── src/athenaeum/         # Main package
 │   ├── infra/             # CDK constructs (MCPServerContainerConstruct)
