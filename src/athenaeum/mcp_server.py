@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 
 from fastapi import FastAPI, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from athenaeum.retriever import query_index, retrieve_context
@@ -19,6 +20,15 @@ app = FastAPI(
     title="Athenaeum MCP Server",
     description="Give your LLM a library - An MCP-compatible API for document retrieval",
     version="0.1.0"
+)
+
+# Configure CORS to allow requests from browser-based clients
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins - consider restricting in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Models for API requests and responses
