@@ -57,6 +57,8 @@ dev = [
   "pytest-asyncio>=0.23.0",  # For async tests
   "ruff>=0.6",
   "mypy>=1.11",
+  "bandit>=1.7",
+  "pre-commit>=3.5",
 ]
 deploy = [
   "aws-cdk-lib>=2.100.0",
