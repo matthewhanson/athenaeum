@@ -22,7 +22,7 @@ def mock_index_dir(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def client(_mock_index_dir):  # noqa: ARG001
+def client(mock_index_dir):  # noqa: ARG001
     # Create a test client for FastAPI (with mock index dir set)
     return TestClient(app)
 
