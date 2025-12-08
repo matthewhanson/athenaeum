@@ -9,26 +9,37 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from athenaeum.retriever import query_index, retrieve_context
+
+# Detect if running in AWS Lambda and set root_path for API Gateway stage
+# This ensures /docs and /openapi.json work correctly behind API Gateway
+root_path = ""
+if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    # Running in Lambda - assume /prod stage (can be overridden with ROOT_PATH env var)
+    root_path = os.getenv("ROOT_PATH", "/prod")
 
 # Initialize FastAPI app
 app = FastAPI(
     title="Athenaeum MCP Server",
     description="Give your LLM a library - An MCP-compatible API for document retrieval",
     version="0.1.0",
+    root_path=root_path,  # Set root path for API Gateway stage support
 )
 
 # Configure CORS to allow requests from browser-based clients
+# Must be configured here (not just in API Gateway) because Lambda proxy
+# integration passes through the response from FastAPI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins - consider restricting in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Expose all headers to the browser
 )
 
 
@@ -67,21 +78,38 @@ def get_index_dir() -> Path:
 
 
 @app.get("/")
-def landing_page() -> dict[str, Any]:
+def landing_page(request: Request) -> dict[str, Any]:
     """Landing page with API documentation and endpoint links."""
+    # Detect base path from API Gateway stage
+    # Lambda Web Adapter sets AWS_LAMBDA_FUNCTION_NAME, use that to detect Lambda environment
+    # In API Gateway with stages, the full path includes the stage (e.g., /prod)
+    base_url = str(request.base_url).rstrip("/")
+    
+    # Try to get the stage from headers or path
+    stage_prefix = ""
+    if "x-forwarded-prefix" in request.headers:
+        stage_prefix = request.headers["x-forwarded-prefix"]
+    elif request.scope.get("root_path"):
+        stage_prefix = request.scope["root_path"]
+    
+    # Default to /prod for AWS deployments if we can't detect it
+    if not stage_prefix and os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        stage_prefix = "/prod"
+    
     return {
         "name": "Athenaeum MCP Server",
         "version": "0.1.0",
         "description": "An MCP-compatible API for retrieving from a custom knowledge base using RAG",
+        "base_url": base_url + stage_prefix if stage_prefix else base_url,
         "endpoints": [
             {
-                "path": "/health",
+                "path": f"{stage_prefix}/health",
                 "method": "GET",
                 "description": "Health check endpoint to verify the server is running",
             },
-            {"path": "/models", "method": "GET", "description": "List available models"},
+            {"path": f"{stage_prefix}/models", "method": "GET", "description": "List available models"},
             {
-                "path": "/search",
+                "path": f"{stage_prefix}/search",
                 "method": "POST",
                 "description": "Search for context chunks matching a query for RAG applications",
                 "parameters": {
@@ -90,7 +118,7 @@ def landing_page() -> dict[str, Any]:
                 },
             },
             {
-                "path": "/chat",
+                "path": f"{stage_prefix}/chat",
                 "method": "POST",
                 "description": "Generate an answer using the index and RAG",
                 "parameters": {
@@ -101,8 +129,8 @@ def landing_page() -> dict[str, Any]:
                 },
             },
         ],
-        "documentation": "/docs",
-        "openapi": "/openapi.json",
+        "documentation": f"{stage_prefix}/docs",
+        "openapi": f"{stage_prefix}/openapi.json",
     }
 
 
