@@ -40,6 +40,7 @@ dependencies = [
   "pydantic>=2.5.0", # Data validation
   "torch>=2.0.0", # PyTorch (required by sentence-transformers)
   "transformers>=4.36", # Transformers (required by sentence-transformers)
+  "mcp>=1.0.0", # Model Context Protocol SDK for SSE transport
 ]
 
 [project.urls]

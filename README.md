@@ -9,14 +9,14 @@
 
 *Give your LLM a library.*
 
-A RAG (Retrieval-Augmented Generation) system built with LlamaIndex and FastAPI that provides an MCP-compatible server for document retrieval and question answering.
+A RAG (Retrieval-Augmented Generation) system built with LlamaIndex and FastAPI that provides both REST API and Model Context Protocol (MCP) interfaces for document retrieval and question answering.
 
 ## Features
 
 - **Markdown-Focused**: Optimized for indexing markdown documents with structure-aware parsing
 - **Vector Search**: FAISS-backed vector search using HuggingFace embeddings
-- **MCP Server**: HTTP API with clean endpoints for retrieval and chat
-- **CLI Tools**: Build indices, query, and run the MCP server
+- **Dual Interface**: REST API for web UIs and MCP protocol (SSE) for GitHub Copilot integration
+- **CLI Tools**: Build indices, query, and run the server
 - **AWS Lambda Deployment**: Serverless deployment with CDK, OAuth authentication, and S3 index storage
 - **Reusable CDK Constructs**: L3 constructs for dependencies layer and MCP server deployment
 - **Well-Tested**: Comprehensive test suite with 12 passing tests
@@ -336,6 +336,56 @@ Generate an answer using RAG
   ]
 }
 ```
+
+
+## Model Context Protocol (MCP)
+
+In addition to the REST API, Athenaeum supports the **Model Context Protocol** for integration with AI tools like GitHub Copilot and Claude Desktop.
+
+### MCP Endpoint
+
+The server exposes an SSE endpoint at `/mcp` that implements the MCP protocol:
+
+```bash
+# Local development
+http://localhost:8000/mcp
+
+# AWS deployment  
+https://your-api.execute-api.region.amazonaws.com/prod/mcp
+```
+
+### MCP Tools
+
+- **`search`**: Search indexed documents for relevant passages
+  - Parameters: `query` (string), `limit` (int, default 10)
+  - Returns: Array of search results with content and metadata
+
+- **`chat`**: Ask questions with RAG-powered answers
+  - Parameters: `query` (string), `max_tokens` (int, default 1024)
+  - Returns: Generated answer with source citations
+
+### MCP Resources
+
+- **`index://status`**: Get index status (file sizes, health check)
+
+### Using with GitHub Copilot
+
+1. Configure your GitHub connector to point to `/mcp`:
+   ```
+   https://your-deployment-url.com/mcp
+   ```
+
+2. GitHub will connect via SSE and discover available tools
+
+3. Use the tools in your Copilot chat:
+   - "Search the docs for information about X"
+   - "What does the documentation say about Y?"
+
+See [`MCP_PROTOCOL.md`](MCP_PROTOCOL.md) for complete documentation including:
+- Testing with MCP Inspector
+- AWS Lambda considerations for SSE streaming
+- Environment variables
+- Troubleshooting
 
 ## Project Structure
 

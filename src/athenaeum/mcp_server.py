@@ -1,5 +1,9 @@
 """
 MCP (Model Completion Protocol) server implementation for RAG using LlamaIndex.
+
+This file provides both:
+1. REST API endpoints for the web UI (/search, /chat, etc.)
+2. MCP protocol over SSE for GitHub Copilot and other MCP clients
 """
 
 from __future__ import annotations
@@ -12,6 +16,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from starlette.routing import Mount
 
 from athenaeum.retriever import query_index, retrieve_context
 
@@ -222,3 +227,17 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
         ],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     }
+
+
+# Mount MCP protocol SSE endpoint for GitHub Copilot and other MCP clients
+# This is imported conditionally to avoid errors when MCP SDK is not installed
+try:
+    from athenaeum.mcp_protocol import mcp
+    
+    # Mount the SSE server at /mcp for MCP protocol support
+    # GitHub and other MCP clients will connect to this endpoint
+    app.router.routes.append(Mount("/mcp", app=mcp.sse_app()))
+except ImportError:
+    # MCP SDK not installed - SSE endpoint will not be available
+    # The REST API endpoints will still work for the web UI
+    pass
