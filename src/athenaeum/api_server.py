@@ -201,7 +201,11 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
     Chat endpoint with RAG.
 
     This endpoint performs RAG using the index and returns an answer.
+    System prompt can be customized via CHAT_SYSTEM_PROMPT environment variable.
     """
+    # Get optional system prompt from environment
+    system_prompt = os.getenv("CHAT_SYSTEM_PROMPT")
+    
     # Extract user query from the last user message
     user_message = None
     for msg in reversed(request.messages):
@@ -212,13 +216,14 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
     if not user_message:
         return {"error": "No user message found in the chat history"}
 
-    # Query the index using OpenAI
+    # Query the index using OpenAI with optional system prompt
     result = query_index(
         index_dir=index_dir,
         question=user_message.content,
-        top_k=5,
+        top_k=10,
         llm_provider="openai",
         llm_model=request.model,
+        system_prompt=system_prompt,
     )
 
     # Format as MCP response

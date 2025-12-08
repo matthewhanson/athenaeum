@@ -67,7 +67,7 @@ def test_mcp_search(mock_retrieve, mock_dir, client, mock_index_dir):
 
 @patch("athenaeum.api_server.get_index_dir")
 @patch("athenaeum.api_server.query_index")
-def test_mcp_chat(mock_query, mock_dir, client, mock_index_dir):
+def test_chat_endpoint(mock_query, mock_dir, client, mock_index_dir):
     # Setup mock
     mock_dir.return_value = mock_index_dir
     mock_query.return_value = {

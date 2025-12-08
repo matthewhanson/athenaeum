@@ -43,6 +43,7 @@ def query_index(
     llm_provider: str = "openai",
     llm_model: str = "gpt-4o-mini",
     top_k: int = 5,
+    system_prompt: str | None = None,
 ) -> dict[str, Any]:
     """
     Query an existing index with a question and generate an answer.
@@ -57,15 +58,35 @@ def query_index(
         llm_provider: LLM provider - "openai", "bedrock", etc. (default: "openai")
         llm_model: Model name for the LLM provider (default: gpt-4o-mini for OpenAI)
         top_k: Number of results to return
+        system_prompt: Optional system prompt to guide the LLM's behavior
 
     Returns:
         Dict with 'answer' and 'sources' keys
     """
+    from llama_index.core.prompts import PromptTemplate
+    
     setup_settings(embed_model=embed_model, llm_provider=llm_provider, llm_model=llm_model)
     storage_context = _load_index_storage(index_dir)
     index = load_index_from_storage(storage_context)
 
-    qe = index.as_query_engine(similarity_top_k=top_k)
+    # Create query engine with optional system prompt
+    query_engine_kwargs = {"similarity_top_k": top_k}
+    if system_prompt:
+        # Create a custom template that includes the system prompt
+        qa_template = PromptTemplate(
+            f"{system_prompt}\n\n"
+            "Context information is below.\n"
+            "---------------------\n"
+            "{context_str}\n"
+            "---------------------\n"
+            "Given the context information and not prior knowledge, "
+            "answer the query.\n"
+            "Query: {query_str}\n"
+            "Answer: "
+        )
+        query_engine_kwargs["text_qa_template"] = qa_template
+    
+    qe = index.as_query_engine(**query_engine_kwargs)
     resp = qe.query(question)
 
     # Extract sources
