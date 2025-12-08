@@ -171,7 +171,7 @@ def cmd_serve(
         sys.executable,
         "-m",
         "uvicorn",
-        "athenaeum.mcp_server:app",
+        "athenaeum.api_server:app",
         "--host",
         host,
         "--port",

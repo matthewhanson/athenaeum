@@ -166,7 +166,7 @@ class MCPServerConstruct(Construct):
                                 "cp /asset-input/lambda_handler.py /asset-output/",
                                 # Create run.sh script for Lambda Web Adapter
                                 "echo '#!/bin/sh' > /asset-output/run.sh",
-                                "echo 'python lambda_handler.py && exec uvicorn athenaeum.mcp_server:app --host 0.0.0.0 --port 8080' >> /asset-output/run.sh",
+                                "echo 'python lambda_handler.py && exec uvicorn athenaeum.api_server:app --host 0.0.0.0 --port 8080' >> /asset-output/run.sh",
                                 "chmod +x /asset-output/run.sh",
                             ]
                         ),

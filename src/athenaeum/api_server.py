@@ -1,9 +1,12 @@
 """
-MCP (Model Completion Protocol) server implementation for RAG using LlamaIndex.
+FastAPI server for Athenaeum RAG system.
 
-This file provides both:
-1. REST API endpoints for the web UI (/search, /chat, etc.)
-2. MCP protocol over SSE for GitHub Copilot and other MCP clients
+Provides two interfaces:
+1. REST API endpoints (/search, /chat, /health, /models) for web UIs and direct HTTP access
+2. Model Context Protocol (MCP) over SSE at /mcp for GitHub Copilot and other MCP clients
+
+The REST API is the primary interface. The MCP endpoint is mounted as an additional
+transport layer for AI tools that support the MCP protocol.
 """
 
 from __future__ import annotations
@@ -132,6 +135,12 @@ def landing_page(request: Request) -> dict[str, Any]:
                     "temperature": "Sampling temperature (default: 0.7)",
                     "max_tokens": "Maximum tokens in response (default: 512)",
                 },
+            },
+            {
+                "path": f"{stage_prefix}/mcp",
+                "method": "GET",
+                "description": "Model Context Protocol endpoint (SSE) for GitHub Copilot and other MCP clients",
+                "note": "Uses Server-Sent Events - connect with MCP-compatible clients",
             },
         ],
         "documentation": f"{stage_prefix}/docs",
