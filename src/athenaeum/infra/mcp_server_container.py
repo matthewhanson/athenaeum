@@ -207,6 +207,9 @@ class MCPServerContainerConstruct(Construct):
             "Api",
             handler=self.function,
             proxy=True,
+            deploy_options=apigateway.StageOptions(
+                stage_name="",  # Use root stage (no /prod prefix) for MCP compatibility
+            ),
             default_cors_preflight_options=apigateway.CorsOptions(
                 allow_origins=cors_allow_origins,
                 allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
