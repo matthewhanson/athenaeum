@@ -99,9 +99,9 @@ def landing_page(request: Request) -> dict[str, Any]:
         stage_prefix = request.headers["x-forwarded-prefix"]
     elif request.scope.get("root_path"):
         stage_prefix = request.scope["root_path"]
-    
-    # Default to /prod for AWS deployments if we can't detect it
-    if not stage_prefix and os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+    # Only default to /prod if ROOT_PATH env var is not explicitly set
+    elif not stage_prefix and os.getenv("AWS_LAMBDA_FUNCTION_NAME") and os.getenv("ROOT_PATH") is None:
+        # Running in Lambda without explicit ROOT_PATH - assume /prod stage
         stage_prefix = "/prod"
     
     return {

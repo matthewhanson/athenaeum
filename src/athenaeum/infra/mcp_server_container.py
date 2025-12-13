@@ -249,8 +249,15 @@ class MCPServerContainerConstruct(Construct):
                 endpoint_type=apigateway.EndpointType.EDGE,
             )
 
-            # Map the custom domain to the API (empty base path since we use empty stage)
-            domain.add_base_path_mapping(self.api, base_path="")
+            # Map the custom domain to the API with empty base path
+            # This maps: custom-domain.com/* -> api-gateway.com/STAGE/*
+            # The stage name is "prod" (CDK converts "" to "prod")
+            # So we need the API to NOT have /prod in its paths for this to work at root
+            domain.add_base_path_mapping(
+                self.api,
+                base_path="",  # Empty base path = root of custom domain
+                stage=self.api.deployment_stage,  # Points to the "prod" stage
+            )
 
             # Store the custom domain and distribution domain name
             self.custom_domain_name = custom_domain_name
