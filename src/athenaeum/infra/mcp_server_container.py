@@ -22,6 +22,9 @@ from aws_cdk import (
     aws_apigateway as apigateway,
 )
 from aws_cdk import (
+    aws_certificatemanager as acm,
+)
+from aws_cdk import (
     aws_lambda as lambda_,
 )
 from aws_cdk import (
@@ -82,6 +85,8 @@ class MCPServerContainerConstruct(Construct):
         timeout: Duration = Duration.minutes(5),
         log_retention: logs.RetentionDays = logs.RetentionDays.ONE_WEEK,
         cors_allow_origins: list[str] | None = None,
+        custom_domain_name: str | None = None,
+        certificate_arn: str | None = None,
         **kwargs,
     ) -> None:
         """
@@ -99,6 +104,8 @@ class MCPServerContainerConstruct(Construct):
             timeout: Lambda timeout
             log_retention: CloudWatch log retention
             cors_allow_origins: CORS allowed origins (default: ["*"])
+            custom_domain_name: Optional custom domain name for API Gateway (e.g., "api.example.com")
+            certificate_arn: ACM certificate ARN for custom domain (required if custom_domain_name is provided)
         """
         if cors_allow_origins is None:
             cors_allow_origins = ["*"]
@@ -221,6 +228,38 @@ class MCPServerContainerConstruct(Construct):
             ),
         )
 
+        # Set up custom domain if provided
+        if custom_domain_name:
+            if not certificate_arn:
+                raise ValueError(
+                    "certificate_arn is required when custom_domain_name is provided"
+                )
+
+            # Import the certificate
+            certificate = acm.Certificate.from_certificate_arn(
+                self, "Certificate", certificate_arn
+            )
+
+            # Create custom domain
+            domain = apigateway.DomainName(
+                self,
+                "CustomDomain",
+                domain_name=custom_domain_name,
+                certificate=certificate,
+                endpoint_type=apigateway.EndpointType.EDGE,
+            )
+
+            # Map the custom domain to the API (empty base path since we use empty stage)
+            domain.add_base_path_mapping(self.api, base_path="")
+
+            # Store the custom domain and distribution domain name
+            self.custom_domain_name = custom_domain_name
+            self.distribution_domain_name = domain.domain_name_alias_domain_name
+            self.api_url = f"https://{custom_domain_name}"
+        else:
+            self.custom_domain_name = None
+            self.distribution_domain_name = None
+            self.api_url = self.api.url
+
         # Outputs
-        self.api_url = self.api.url
         self.function_name = self.function.function_name
