@@ -182,9 +182,10 @@ class APIServerContainerConstruct(Construct):
         # Prepare environment variables
         env_vars = {
             "PORT": "8080",
-            # Enable response streaming for Function URLs with SSE
-            # This is required for Lambda Web Adapter to support streaming responses
-            "AWS_LWA_INVOKE_MODE": "response_stream",
+            # For API Gateway REST API, use buffered mode (default)
+            # response_stream mode is only for Lambda Function URLs
+            # Strip /prod prefix from API Gateway requests
+            "AWS_LWA_REMOVE_BASE_PATH": "/prod",
         }
         if self.index_bucket:
             env_vars["INDEX_BUCKET"] = self.index_bucket.bucket_name
@@ -212,13 +213,15 @@ class APIServerContainerConstruct(Construct):
             self.index_bucket.grant_read(self.function)
 
         # Create API Gateway for REST endpoints
+        # Note: API Gateway requires a stage name, defaults to "prod" if not specified
+        # Custom domains can map to any stage, but the stage must exist
         self.api = apigateway.LambdaRestApi(
             self,
             "Api",
             handler=self.function,
             proxy=True,
             deploy_options=apigateway.StageOptions(
-                stage_name="",  # Use root stage (no /prod prefix) for cleaner URLs
+                stage_name="prod",  # Standard stage name (custom domain maps to root path)
             ),
             default_cors_preflight_options=apigateway.CorsOptions(
                 allow_origins=cors_allow_origins,

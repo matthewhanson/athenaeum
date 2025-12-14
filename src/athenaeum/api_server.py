@@ -21,13 +21,20 @@ from pydantic import BaseModel
 
 from athenaeum.retriever import query_index, retrieve_context
 
-# Initialize FastAPI app without static root_path
-# The base path will be detected dynamically from request headers
-# This allows the API to work with both custom domains (no prefix) and API Gateway (with stage prefix)
+# Get version from package metadata
+try:
+    from importlib.metadata import version
+    __version__ = version("athenaeum")
+except Exception:
+    __version__ = "0.1.0"  # Fallback for development
+
+# Initialize FastAPI app
+# API Gateway proxy integration handles path routing automatically
+# Works with both custom domain and /prod stage
 app = FastAPI(
     title="Athenaeum API Server",
     description="REST API for RPG knowledge base retrieval and chat",
-    version="0.1.0",
+    version=__version__,
 )
 
 # Configure CORS to allow requests from browser-based clients
