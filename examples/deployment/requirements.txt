@@ -16,6 +16,7 @@ llama-index-vector-stores-faiss>=0.1.0
 
 # LLM providers (optional, install as needed)
 llama-index-llms-openai>=0.6.4
+openai>=1.0.0  # For tool calling in /chat/tools endpoint
 
 # ML/Vector dependencies
 # Note: PyTorch will be installed separately with CPU-only flag

@@ -1,7 +1,7 @@
 [project]
 name = "athenaeum"
 version = "0.1.0"
-description = "Give your LLM a library - A markdown-focused RAG system with vector search and FastAPI MCP server"
+description = "A markdown-focused RAG system with vector search and FastAPI server"
 authors = [{ name = "Matt Hanson", email = "matt.a.hanson@gmail.com" }]
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -14,7 +14,6 @@ keywords = [
     "markdown",
     "faiss",
     "llamaindex",
-    "mcp-server",
     "fastapi",
     "aws-lambda",
 ]
@@ -35,12 +34,12 @@ dependencies = [
   "llama-index-embeddings-huggingface>=0.2.0", # HuggingFace embeddings (sentence-transformers)
   "llama-index-vector-stores-faiss>=0.1.0", # FAISS integration
   "faiss-cpu>=1.7.4", # FAISS backend (CPU)
-  "fastapi>=0.108.0", # API framework for MCP server
+  "fastapi>=0.108.0", # API framework
   "uvicorn>=0.27.0", # ASGI server for FastAPI
   "pydantic>=2.5.0", # Data validation
   "torch>=2.0.0", # PyTorch (required by sentence-transformers)
   "transformers>=4.36", # Transformers (required by sentence-transformers)
-  "mcp>=1.0.0", # Model Context Protocol SDK for SSE transport
+  "openai>=1.0.0", # OpenAI API for chat/tool calling
 ]
 
 [project.urls]

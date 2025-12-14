@@ -1,5 +1,5 @@
 """
-MCPServerContainerConstruct - Lambda container image-based MCP server deployment.
+APIServerContainerConstruct - Lambda container image-based API server deployment.
 
 This construct creates:
 - Lambda function using Docker container images (supports PyTorch, up to 10GB)
@@ -39,11 +39,11 @@ from aws_cdk import (
 from constructs import Construct
 
 
-class MCPServerContainerConstruct(Construct):
+class APIServerContainerConstruct(Construct):
     """
-    Complete MCP server deployment using Lambda container images.
+    Complete API server deployment using Lambda container images.
 
-    This construct sets up everything needed to run an Athenaeum MCP server:
+    This construct sets up everything needed to run an Athenaeum API server:
     - FastAPI Lambda function in Docker container (supports PyTorch)
     - REST API with CORS
     - S3 bucket for the vector index
@@ -54,10 +54,10 @@ class MCPServerContainerConstruct(Construct):
 
     Example:
         ```python
-        from athenaeum.infra import MCPServerContainerConstruct
+        from athenaeum.infra import APIServerContainerConstruct
 
-        # Create MCP server with container
-        server = MCPServerContainerConstruct(
+        # Create API server with container
+        server = APIServerContainerConstruct(
             self, "Server",
             dockerfile_path="/path/to/Dockerfile",
             index_path="/path/to/index",
@@ -90,7 +90,7 @@ class MCPServerContainerConstruct(Construct):
         **kwargs,
     ) -> None:
         """
-        Create an MCP server deployment using Docker container images.
+        Create an API server deployment using Docker container images.
 
         Args:
             scope: CDK scope
@@ -182,6 +182,9 @@ class MCPServerContainerConstruct(Construct):
         # Prepare environment variables
         env_vars = {
             "PORT": "8080",
+            # Enable response streaming for Function URLs with SSE
+            # This is required for Lambda Web Adapter to support streaming responses
+            "AWS_LWA_INVOKE_MODE": "response_stream",
         }
         if self.index_bucket:
             env_vars["INDEX_BUCKET"] = self.index_bucket.bucket_name
@@ -208,14 +211,14 @@ class MCPServerContainerConstruct(Construct):
         if self.index_bucket:
             self.index_bucket.grant_read(self.function)
 
-        # Create API Gateway
+        # Create API Gateway for REST endpoints
         self.api = apigateway.LambdaRestApi(
             self,
             "Api",
             handler=self.function,
             proxy=True,
             deploy_options=apigateway.StageOptions(
-                stage_name="",  # Use root stage (no /prod prefix) for MCP compatibility
+                stage_name="",  # Use root stage (no /prod prefix) for cleaner URLs
             ),
             default_cors_preflight_options=apigateway.CorsOptions(
                 allow_origins=cors_allow_origins,
@@ -226,6 +229,18 @@ class MCPServerContainerConstruct(Construct):
                     "X-Api-Key",
                 ],
             ),
+        )
+
+        # Create Lambda Function URL for SSE endpoint (supports streaming)
+        # Function URLs don't have the 30-second timeout limitation of API Gateway
+        self.function_url = self.function.add_function_url(
+            auth_type=lambda_.FunctionUrlAuthType.NONE,
+            cors=lambda_.FunctionUrlCorsOptions(
+                allowed_origins=cors_allow_origins,
+                allowed_methods=[lambda_.HttpMethod.ALL],
+                allowed_headers=["*"],
+            ),
+            invoke_mode=lambda_.InvokeMode.RESPONSE_STREAM,  # Enable streaming for SSE
         )
 
         # Set up custom domain if provided
@@ -267,6 +282,9 @@ class MCPServerContainerConstruct(Construct):
             self.custom_domain_name = None
             self.distribution_domain_name = None
             self.api_url = self.api.url
+
+        # Store Function URL for SSE endpoint
+        self.sse_url = self.function_url.url
 
         # Outputs
         self.function_name = self.function.function_name

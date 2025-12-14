@@ -9,16 +9,16 @@
 
 *Give your LLM a library.*
 
-A RAG (Retrieval-Augmented Generation) system built with LlamaIndex and FastAPI that provides both REST API and Model Context Protocol (MCP) interfaces for document retrieval and question answering.
+A RAG (Retrieval-Augmented Generation) system built with LlamaIndex and FastAPI that provides a REST API for document retrieval and question answering.
 
 ## Features
 
 - **Markdown-Focused**: Optimized for indexing markdown documents with structure-aware parsing
 - **Vector Search**: FAISS-backed vector search using HuggingFace embeddings
-- **Dual Interface**: REST API for web UIs and MCP protocol (SSE) for GitHub Copilot integration
+- **REST API**: Three endpoints for different use cases (search, answer, chat with tool calling)
 - **CLI Tools**: Build indices, query, and run the server
 - **AWS Lambda Deployment**: Serverless deployment with CDK, OAuth authentication, and S3 index storage
-- **Reusable CDK Constructs**: L3 constructs for dependencies layer and MCP server deployment
+- **Reusable CDK Constructs**: L3 constructs for dependencies layer and API server deployment
 - **Well-Tested**: Comprehensive test suite with 12 passing tests
 - **Clean Architecture**: Logical separation between indexing, retrieval, API, and CLI layers
 
@@ -95,7 +95,7 @@ uv run athenaeum query "Explain the key concepts" \
   --sources
 ```
 
-#### Run the MCP Server
+#### Run the API Server
 
 ```bash
 # Start server with default settings
@@ -107,7 +107,6 @@ uv run athenaeum serve --index ./index --host 0.0.0.0 --port 8000
 # With auto-reload for development
 uv run athenaeum serve --index ./index --reload
 ```
-
 ## AWS Lambda Deployment
 
 Athenaeum provides example deployment configurations for AWS Lambda using **Docker container images** (required for PyTorch + ML dependencies).
@@ -161,14 +160,14 @@ cp -r athenaeum/examples/deployment/* my-project/
 
 ```python
 from aws_cdk import Stack, CfnOutput, Duration
-from athenaeum.infra import MCPServerContainerConstruct
+from athenaeum.infra import APIServerContainerConstruct
 import os
 
 class MyStack(Stack):
     def __init__(self, scope, construct_id, **kwargs):
         super().__init__(scope, construct_id, **kwargs)
 
-        server = MCPServerContainerConstruct(
+        server = APIServerContainerConstruct(
             self, "Server",
             dockerfile_path="./Dockerfile",      # Your Dockerfile
             docker_build_context=".",             # Build from current dir
@@ -214,9 +213,9 @@ cdk deploy
 - [`examples/deployment/README.md`](examples/deployment/README.md) - Deployment template and instructions
 - [`examples/README.md`](examples/README.md) - Examples overview
 
-## MCP Server API
+## API Server
 
-The server provides clean HTTP endpoints (no `/v1` prefix) for RAG operations:
+The server provides clean HTTP endpoints for RAG operations:
 
 ### Endpoints
 
@@ -228,13 +227,14 @@ Landing page with API documentation
 
 ```json
 {
-  "service": "Athenaeum MCP Server",
-  "version": "1.0",
+  "service": "Athenaeum API Server",
+  "version": "0.1.0",
   "endpoints": {
     "/health": "Health check",
     "/models": "List available models",
     "/search": "Search for context chunks",
-    "/chat": "Chat with RAG"
+    "/answer": "Single-search RAG answer",
+    "/chat": "Chat with tool calling (multi-search)"
   }
 }
 ```
@@ -246,9 +246,8 @@ Health check endpoint
 **Response:**
 
 ```json
-{"status": "healthy"}
+{"status": "ok"}
 ```
-
 #### `GET /models`
 
 List available retrieval models
@@ -337,56 +336,6 @@ Generate an answer using RAG
 }
 ```
 
-
-## Model Context Protocol (MCP)
-
-In addition to the REST API, Athenaeum supports the **Model Context Protocol** for integration with AI tools like GitHub Copilot and Claude Desktop.
-
-### MCP Endpoint
-
-The server exposes an SSE endpoint at `/mcp` that implements the MCP protocol:
-
-```bash
-# Local development
-http://localhost:8000/mcp
-
-# AWS deployment  
-https://your-api.execute-api.region.amazonaws.com/prod/mcp
-```
-
-### MCP Tools
-
-- **`search`**: Search indexed documents for relevant passages
-  - Parameters: `query` (string), `limit` (int, default 10)
-  - Returns: Array of search results with content and metadata
-
-- **`chat`**: Ask questions with RAG-powered answers
-  - Parameters: `query` (string), `max_tokens` (int, default 1024)
-  - Returns: Generated answer with source citations
-
-### MCP Resources
-
-- **`index://status`**: Get index status (file sizes, health check)
-
-### Using with GitHub Copilot
-
-1. Configure your GitHub connector to point to `/mcp`:
-   ```
-   https://your-deployment-url.com/mcp
-   ```
-
-2. GitHub will connect via SSE and discover available tools
-
-3. Use the tools in your Copilot chat:
-   - "Search the docs for information about X"
-   - "What does the documentation say about Y?"
-
-See [`MCP_PROTOCOL.md`](MCP_PROTOCOL.md) for complete documentation including:
-- Testing with MCP Inspector
-- AWS Lambda considerations for SSE streaming
-- Environment variables
-- Troubleshooting
-
 ## Project Structure
 
 The codebase is organized by concern with clear separation between indexing, retrieval, and interface layers:
@@ -405,23 +354,24 @@ src/athenaeum/
 │   ├── retrieve_context() - PUBLIC API - Retrieve context chunks
 │   └── _load_index_storage() - Private helper
 │
-├── mcp_server.py         # FastAPI MCP server (~160 lines)
+├── api_server.py         # FastAPI REST API server (~400 lines)
 │   ├── GET /            - Landing page with API docs
 │   ├── GET /health      - Health check
 │   ├── GET /models      - List models
-│   ├── POST /search     - Search for context
-│   └── POST /chat       - Chat with RAG
+│   ├── POST /search     - Search for context (raw vector search)
+│   ├── POST /answer     - Single-search RAG (quick answers)
+│   └── POST /chat       - Multi-search with tool calling (interactive)
 │
 └── main_cli.py           # Typer CLI (~160 lines)
     ├── index            - Build markdown index
     ├── query            - Query index
-    └── serve            - Launch MCP server
+    └── serve            - Launch API server
 
 tests/
 ├── test_utils.py         # Test shared utilities
 ├── test_indexer.py       # Test indexing functions
 ├── test_retriever.py     # Test retrieval functions
-├── test_mcp_server.py    # Test all API endpoints
+├── test_api_server.py    # Test all API endpoints
 └── test_cli.py           # Test CLI commands
 ```
 
@@ -454,8 +404,11 @@ tests/
 # Optional: Override default LLM for answer generation
 export OPENAI_MODEL="gpt-4o-mini"
 
-# For MCP server (set automatically by CLI)
+# For API server (set automatically by CLI)
 export ATHENAEUM_INDEX_DIR="/path/to/index"
+
+# Optional: Custom system prompt for chat/answer endpoints
+export CHAT_SYSTEM_PROMPT="You are a helpful assistant..."
 ```
 
 ## Markdown Indexing

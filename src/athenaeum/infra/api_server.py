@@ -1,5 +1,5 @@
 """
-MCPServerConstruct - A reusable construct for deploying Athenaeum MCP servers.
+APIServerConstruct - A reusable construct for deploying Athenaeum API servers.
 
 This construct creates:
 - Lambda function running FastAPI via Lambda Web Adapter
@@ -32,11 +32,11 @@ from aws_cdk import (
 from constructs import Construct
 
 
-class MCPServerConstruct(Construct):
+class APIServerConstruct(Construct):
     """
-    Complete MCP server deployment with Lambda, API Gateway, and S3.
+    Complete API server deployment with Lambda, API Gateway, and S3.
 
-    This construct sets up everything needed to run an Athenaeum MCP server:
+    This construct sets up everything needed to run an Athenaeum API server:
     - FastAPI Lambda function with Lambda Web Adapter
     - REST API with CORS
     - S3 bucket for the vector index
@@ -45,13 +45,13 @@ class MCPServerConstruct(Construct):
 
     Example:
         ```python
-        from athenaeum.infra import DependenciesLayerConstruct, MCPServerConstruct
+        from athenaeum.infra import DependenciesLayerConstruct, APIServerConstruct
 
         # Create dependencies layer
         deps = DependenciesLayerConstruct(self, "Deps")
 
-        # Create MCP server
-        server = MCPServerConstruct(
+        # Create API server
+        server = APIServerConstruct(
             self, "Server",
             dependencies_layer=deps.layer,
             index_path="/path/to/index",
@@ -81,7 +81,7 @@ class MCPServerConstruct(Construct):
         **kwargs,
     ) -> None:
         """
-        Create an MCP server deployment.
+        Create an API server deployment.
 
         Args:
             scope: CDK scope

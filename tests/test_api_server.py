@@ -45,7 +45,7 @@ def test_list_models(_mock_dir, client):  # noqa: ARG001
 
 @patch("athenaeum.api_server.get_index_dir")
 @patch("athenaeum.api_server.retrieve_context")
-def test_mcp_search(mock_retrieve, mock_dir, client, mock_index_dir):
+def test_search_endpoint(mock_retrieve, mock_dir, client, mock_index_dir):
     # Setup mock
     mock_dir.return_value = mock_index_dir
     mock_retrieve.return_value = [

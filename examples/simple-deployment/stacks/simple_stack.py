@@ -2,7 +2,7 @@
 Simple example of deploying Athenaeum using container-based deployment.
 
 This is a minimal example showing how to use Athenaeum's high-level
-MCPServerContainerConstruct to deploy your own knowledge base.
+APIServerContainerConstruct to deploy your own knowledge base.
 """
 
 import os
@@ -18,7 +18,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 
-from athenaeum.infra import MCPServerContainerConstruct
+from athenaeum.infra import APIServerContainerConstruct
 
 
 class SimpleAtheneumStack(Stack):
@@ -35,9 +35,9 @@ class SimpleAtheneumStack(Stack):
         project_root = Path(__file__).parent.parent
         index_path = project_root / "index"
 
-        # Create MCP server using container deployment
+        # Create API server using container deployment
         # This creates Lambda + API Gateway + S3 bucket + Docker image
-        server = MCPServerContainerConstruct(
+        server = APIServerContainerConstruct(
             self,
             "Server",
             # Index will be uploaded to S3 and downloaded on Lambda cold start
