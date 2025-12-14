@@ -21,19 +21,13 @@ from pydantic import BaseModel
 
 from athenaeum.retriever import query_index, retrieve_context
 
-# Detect if running in AWS Lambda and set root_path for API Gateway stage
-# This ensures /docs and /openapi.json work correctly behind API Gateway
-root_path = ""
-if os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
-    # Running in Lambda - assume /prod stage (can be overridden with ROOT_PATH env var)
-    root_path = os.getenv("ROOT_PATH", "/prod")
-
-# Initialize FastAPI app
+# Initialize FastAPI app without static root_path
+# The base path will be detected dynamically from request headers
+# This allows the API to work with both custom domains (no prefix) and API Gateway (with stage prefix)
 app = FastAPI(
     title="Athenaeum API Server",
     description="REST API for RPG knowledge base retrieval and chat",
     version="0.1.0",
-    root_path=root_path,  # Set root path for API Gateway stage support
 )
 
 # Configure CORS to allow requests from browser-based clients
@@ -86,21 +80,15 @@ def get_index_dir() -> Path:
 @app.get("/")
 def landing_page(request: Request) -> dict[str, Any]:
     """Landing page with API documentation and endpoint links."""
-    # Detect base path from API Gateway stage
-    # Lambda Web Adapter sets AWS_LAMBDA_FUNCTION_NAME, use that to detect Lambda environment
-    # In API Gateway with stages, the full path includes the stage (e.g., /prod)
+    # Dynamically detect base path from request headers
+    # This works with both custom domains (no prefix) and API Gateway (with /prod or other stage)
     base_url = str(request.base_url).rstrip("/")
     
-    # Try to get the stage from headers or path
+    # Check for API Gateway stage prefix in headers
     stage_prefix = ""
     if "x-forwarded-prefix" in request.headers:
+        # API Gateway sets this header with the stage name
         stage_prefix = request.headers["x-forwarded-prefix"]
-    elif request.scope.get("root_path"):
-        stage_prefix = request.scope["root_path"]
-    # Only default to /prod if ROOT_PATH env var is not explicitly set
-    elif not stage_prefix and os.getenv("AWS_LAMBDA_FUNCTION_NAME") and os.getenv("ROOT_PATH") is None:
-        # Running in Lambda without explicit ROOT_PATH - assume /prod stage
-        stage_prefix = "/prod"
     
     return {
         "name": "Athenaeum API Server",
