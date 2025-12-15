@@ -226,11 +226,8 @@ class APIServerContainerConstruct(Construct):
             default_cors_preflight_options=apigateway.CorsOptions(
                 allow_origins=cors_allow_origins,
                 allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                allow_headers=[
-                    "Content-Type",
-                    "Authorization",
-                    "X-Api-Key",
-                ],
+                allow_headers=["*"],  # Allow all headers for preflight
+                allow_credentials=True,
             ),
         )
 
@@ -258,13 +255,15 @@ class APIServerContainerConstruct(Construct):
                 self, "Certificate", certificate_arn
             )
 
-            # Create custom domain
+            # Create custom domain with REGIONAL endpoint (simpler, cheaper for low-traffic apps)
+            # REGIONAL = DNS points directly to API Gateway (no CloudFront)
+            # EDGE = DNS points to CloudFront distribution (adds caching layer, costs more)
             domain = apigateway.DomainName(
                 self,
                 "CustomDomain",
                 domain_name=custom_domain_name,
                 certificate=certificate,
-                endpoint_type=apigateway.EndpointType.EDGE,
+                endpoint_type=apigateway.EndpointType.REGIONAL,
             )
 
             # Map the custom domain to the API with empty base path
@@ -277,13 +276,15 @@ class APIServerContainerConstruct(Construct):
                 stage=self.api.deployment_stage,  # Points to the "prod" stage
             )
 
-            # Store the custom domain and distribution domain name
+            # Store the custom domain and regional domain name for DNS
+            # REGIONAL endpoint: DNS CNAME points to domain.domain_name_alias_domain_name
+            # This is the API Gateway regional endpoint (e.g., d-abc123.execute-api.us-east-1.amazonaws.com)
             self.custom_domain_name = custom_domain_name
-            self.distribution_domain_name = domain.domain_name_alias_domain_name
+            self.regional_domain_name = domain.domain_name_alias_domain_name
             self.api_url = f"https://{custom_domain_name}"
         else:
             self.custom_domain_name = None
-            self.distribution_domain_name = None
+            self.regional_domain_name = None
             self.api_url = self.api.url
 
         # Store Function URL for SSE endpoint
