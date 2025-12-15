@@ -294,11 +294,25 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
         }
     ]
     
-    # Get system prompt from environment or use default
-    system_prompt = os.getenv(
-        "CHAT_SYSTEM_PROMPT",
-        "You are a helpful assistant with access to a knowledge base. Use the search_knowledge_base tool to find relevant information when needed."
-    )
+    # Get system prompt from file or environment variable
+    # Priority: CHAT_SYSTEM_PROMPT_FILE env var > bundled prompt file > CHAT_SYSTEM_PROMPT env var > default
+    prompt_file = os.getenv("CHAT_SYSTEM_PROMPT_FILE")
+    if prompt_file and os.path.exists(prompt_file):
+        # Use custom prompt file from environment variable (e.g., Nomikos-specific)
+        with open(prompt_file, "r") as f:
+            system_prompt = f.read().strip()
+    else:
+        # Fall back to bundled prompt file
+        bundled_prompt = os.path.join(os.path.dirname(__file__), "prompts", "chat_system_prompt.txt")
+        try:
+            with open(bundled_prompt, "r") as f:
+                system_prompt = f.read().strip()
+        except FileNotFoundError:
+            # Final fallback to environment variable or default
+            system_prompt = os.getenv(
+                "CHAT_SYSTEM_PROMPT",
+                "You are a helpful assistant with access to a knowledge base. Use the search_knowledge_base tool to find relevant information when needed."
+            )
     
     # Build messages with system prompt
     messages = [{"role": "system", "content": system_prompt}]
