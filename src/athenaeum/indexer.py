@@ -6,15 +6,107 @@ Optimized for markdown documents with structure-aware parsing.
 from __future__ import annotations
 
 import contextlib
+import re
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
 import faiss
 from llama_index.core import SimpleDirectoryReader, StorageContext, VectorStoreIndex
+from llama_index.core.node_parser import MarkdownNodeParser
+from llama_index.core.schema import Document, TextNode
 from llama_index.vector_stores.faiss import FaissVectorStore
 
 from athenaeum.utils import setup_settings
+
+# ============================================================================
+# Hierarchical Context Preservation
+# ============================================================================
+
+
+def _inject_breadcrumbs(documents: list[Document]) -> list[Document]:
+    """
+    Inject heading breadcrumbs into document text to preserve hierarchy.
+    
+    This solves the known LlamaIndex MarkdownNodeParser limitation where
+    parent heading context is lost during chunking. By prepending breadcrumbs
+    to the content, we ensure each chunk knows its hierarchical context.
+    
+    This is critical for hierarchical documents where the same heading text
+    might appear under different parents (e.g., "Installation" under both
+    "Windows" and "Linux" sections, or year "1066" under different era sections).
+    
+    Example transformation:
+        Original markdown:
+            # User Guide
+            ## Installation
+            ### Windows
+            Follow these steps...
+            
+        After breadcrumb injection:
+            # User Guide
+            ## Installation
+            [User Guide > Installation]
+            
+            ### Windows
+            [User Guide > Installation > Windows]
+            
+            Follow these steps...
+            
+    The breadcrumb is embedded in the chunk text, improving both semantic
+    search accuracy and LLM context understanding.
+    """
+    processed_docs = []
+    
+    for doc in documents:
+        content = doc.text
+        lines = content.split('\n')
+        new_lines = []
+        
+        # Track heading hierarchy as we parse
+        hierarchy_stack = []  # List of (level, heading_text) tuples
+        
+        for line in lines:
+            # Check if this line is a heading
+            heading_match = re.match(r'^(#{1,6})\s+(.+)$', line)
+            
+            if heading_match:
+                level = len(heading_match.group(1))
+                heading_text = heading_match.group(2).strip()
+                
+                # Pop headings at same or deeper level
+                while hierarchy_stack and hierarchy_stack[-1][0] >= level:
+                    hierarchy_stack.pop()
+                
+                # Add current heading to hierarchy
+                hierarchy_stack.append((level, heading_text))
+                
+                # Keep the original heading
+                new_lines.append(line)
+                
+                # Add breadcrumb on next line if we have hierarchy
+                if len(hierarchy_stack) > 1:
+                    # Build breadcrumb from all levels except the current one
+                    # (since it's already in the heading)
+                    breadcrumb_parts = [text for _, text in hierarchy_stack[:-1]]
+                    breadcrumb = " > ".join(breadcrumb_parts + [heading_text])
+                    new_lines.append(f"[{breadcrumb}]")
+                    new_lines.append("")  # Empty line for spacing
+            else:
+                # Regular content line
+                new_lines.append(line)
+        
+        # Create new document with breadcrumb-injected content
+        new_doc = Document(
+            text="\n".join(new_lines),
+            metadata=doc.metadata,
+            excluded_embed_metadata_keys=doc.excluded_embed_metadata_keys,
+            excluded_llm_metadata_keys=doc.excluded_llm_metadata_keys,
+        )
+        processed_docs.append(new_doc)
+    
+    return processed_docs
+
 
 # ============================================================================
 # Index Building
@@ -157,6 +249,10 @@ def build_index(
 
     if not documents:
         return {"warning": "No documents loaded after filtering."} if return_stats else None
+
+    # Inject hierarchical breadcrumbs to preserve heading context
+    # This solves the MarkdownNodeParser limitation where parent headings are lost
+    documents = _inject_breadcrumbs(documents)
 
     storage = _create_faiss_storage(index_dir)
     index = VectorStoreIndex.from_documents(
