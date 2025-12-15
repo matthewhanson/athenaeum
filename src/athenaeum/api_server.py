@@ -304,6 +304,9 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend([{"role": msg.role, "content": msg.content} for msg in request.messages])
     
+    # Track all tool calls made during the conversation
+    all_tool_calls = []
+    
     # Tool calling loop - allow up to 5 iterations to prevent infinite loops
     max_iterations = 5
     for iteration in range(max_iterations):
@@ -339,7 +342,8 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                     "completion_tokens": response.usage.completion_tokens,
                     "total_tokens": response.usage.total_tokens,
                 },
-                "tool_calls_made": iteration,  # Track how many search calls were made
+                "tool_calls_made": len(all_tool_calls),  # Track how many search calls were made
+                "tool_calls": all_tool_calls  # Include all tool calls made during conversation
             }
         
         # Add assistant message with tool calls to conversation
@@ -364,6 +368,16 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                 args = json.loads(tool_call.function.arguments)
                 query = args.get("query", "")
                 limit = args.get("limit", 5)
+                
+                # Track this tool call
+                all_tool_calls.append({
+                    "id": tool_call.id,
+                    "type": tool_call.type,
+                    "function": {
+                        "name": tool_call.function.name,
+                        "arguments": tool_call.function.arguments
+                    }
+                })
                 
                 # Execute search
                 contexts = retrieve_context(index_dir=index_dir, question=query, top_k=limit)
@@ -398,5 +412,6 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
             }
         ],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        "tool_calls_made": max_iterations,
+        "tool_calls_made": len(all_tool_calls),
+        "tool_calls": all_tool_calls
     }
