@@ -294,25 +294,30 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
         }
     ]
     
-    # Get system prompt from file or environment variable
-    # Priority: CHAT_SYSTEM_PROMPT_FILE env var > bundled prompt file > CHAT_SYSTEM_PROMPT env var > default
-    prompt_file = os.getenv("CHAT_SYSTEM_PROMPT_FILE")
-    if prompt_file and os.path.exists(prompt_file):
-        # Use custom prompt file from environment variable (e.g., Nomikos-specific)
-        with open(prompt_file, "r") as f:
-            system_prompt = f.read().strip()
+    # Get base system prompt (athenaeum grounding rules)
+    bundled_prompt = os.path.join(os.path.dirname(__file__), "prompts", "chat_system_prompt.txt")
+    try:
+        with open(bundled_prompt, "r") as f:
+            base_prompt = f.read().strip()
+    except FileNotFoundError:
+        # Fallback base prompt
+        base_prompt = "You are a helpful assistant with access to a knowledge base. Use the search_knowledge_base tool to find relevant information when needed."
+    
+    # Get application-specific prompt (optional, e.g., Nomikos persona)
+    app_prompt_file = os.getenv("CHAT_SYSTEM_PROMPT_FILE")
+    if app_prompt_file and os.path.exists(app_prompt_file):
+        with open(app_prompt_file, "r") as f:
+            app_prompt = f.read().strip()
+        # Combine: base grounding rules + application-specific persona
+        system_prompt = f"{base_prompt}\n\n{app_prompt}"
     else:
-        # Fall back to bundled prompt file
-        bundled_prompt = os.path.join(os.path.dirname(__file__), "prompts", "chat_system_prompt.txt")
-        try:
-            with open(bundled_prompt, "r") as f:
-                system_prompt = f.read().strip()
-        except FileNotFoundError:
-            # Final fallback to environment variable or default
-            system_prompt = os.getenv(
-                "CHAT_SYSTEM_PROMPT",
-                "You are a helpful assistant with access to a knowledge base. Use the search_knowledge_base tool to find relevant information when needed."
-            )
+        # Check for direct environment variable override
+        env_prompt = os.getenv("CHAT_SYSTEM_PROMPT")
+        if env_prompt:
+            system_prompt = f"{base_prompt}\n\n{env_prompt}"
+        else:
+            # Just use base prompt
+            system_prompt = base_prompt
     
     # Build messages with system prompt
     messages = [{"role": "system", "content": system_prompt}]
