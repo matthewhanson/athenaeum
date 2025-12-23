@@ -24,6 +24,48 @@ from athenaeum.utils import setup_settings
 # ============================================================================
 
 
+def _looks_like_year_or_date(text: str) -> tuple[bool, str]:
+    """
+    Detect if a heading looks like a year/date and enhance it with temporal keywords.
+    
+    Handles various timeline formats:
+    - "6050" -> (True, "Year 6050")
+    - "6050-3-14" -> (True, "Date 6050-3-14")
+    - "c. 1300" -> (True, "circa Year 1300")
+    - "1066 – 1087" -> (True, "Years 1066 – 1087")
+    - "Installation" -> (False, "Installation")
+    
+    This helps semantic search by adding natural language temporal keywords
+    that match queries like "what happened in year 6050" or "events in 1066".
+    """
+    text = text.strip()
+    
+    # Check for range: "1066 – 1087" or "1-1000"
+    if '–' in text or '—' in text:
+        # Likely a year range
+        return (True, f"Years {text}")
+    
+    # Check for "c." prefix (circa)
+    if text.startswith('c.'):
+        return (True, f"circa Year {text[2:].strip()}")
+    
+    # Check if it's purely numeric or date-like (year, year-month, year-month-day)
+    # Strip leading/trailing non-digits
+    clean = text.strip('.,;:!? ')
+    
+    # Pattern: digits with optional dashes (6050, 6050-3, 6050-3-14)
+    if re.match(r'^\d+(-\d+)*$', clean):
+        # Has dashes - likely a date
+        if '-' in clean:
+            return (True, f"Date {clean}")
+        else:
+            # Just a number - likely a year
+            return (True, f"Year {clean}")
+    
+    # Not a temporal heading
+    return (False, text)
+
+
 def _inject_breadcrumbs(documents: list[Document]) -> list[Document]:
     """
     Inject heading breadcrumbs into document text to preserve hierarchy.
@@ -74,24 +116,30 @@ def _inject_breadcrumbs(documents: list[Document]) -> list[Document]:
                 level = len(heading_match.group(1))
                 heading_text = heading_match.group(2).strip()
                 
+                # Enhance temporal headings with natural language keywords
+                is_temporal, enhanced_text = _looks_like_year_or_date(heading_text)
+                
                 # Pop headings at same or deeper level
                 while hierarchy_stack and hierarchy_stack[-1][0] >= level:
                     hierarchy_stack.pop()
                 
-                # Add current heading to hierarchy
-                hierarchy_stack.append((level, heading_text))
+                # Store the enhanced text in hierarchy for better breadcrumbs
+                hierarchy_stack.append((level, enhanced_text))
                 
                 # Keep the original heading
                 new_lines.append(line)
                 
                 # Add breadcrumb on next line if we have hierarchy
                 if len(hierarchy_stack) > 1:
-                    # Build breadcrumb from all levels except the current one
-                    # (since it's already in the heading)
-                    breadcrumb_parts = [text for _, text in hierarchy_stack[:-1]]
-                    breadcrumb = " > ".join(breadcrumb_parts + [heading_text])
+                    # Build breadcrumb from all levels
+                    breadcrumb_parts = [text for _, text in hierarchy_stack]
+                    breadcrumb = " > ".join(breadcrumb_parts)
                     new_lines.append(f"[{breadcrumb}]")
                     new_lines.append("")  # Empty line for spacing
+                elif is_temporal:
+                    # Even at top level, add temporal context for better search
+                    new_lines.append(f"[{enhanced_text}]")
+                    new_lines.append("")
             else:
                 # Regular content line
                 new_lines.append(line)

@@ -4,6 +4,7 @@ Query and retrieval functions for the FAISS-backed index.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -145,3 +146,83 @@ def retrieve_context(
         )
 
     return contexts
+
+
+def retrieve_timeline(
+    index_dir: Path,
+    start_year: int | None = None,
+    end_year: int | None = None,
+    embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    top_k: int = 10,
+) -> list[dict[str, Any]]:
+    """
+    Retrieve timeline entries within a year range.
+    
+    This performs numerical filtering on timeline entries by extracting years
+    from breadcrumb annotations like "[Third Era Timeline > Year 6050]".
+    
+    Unlike semantic search, this finds all entries where the year number falls
+    within the specified range, making it ideal for queries like:
+    - "What happened between 6000 and 6500?"
+    - "Events after year 6000"
+    - "Timeline before year 1000"
+    
+    Args:
+        index_dir: Path to the index directory
+        start_year: Starting year (inclusive), None means no lower bound
+        end_year: Ending year (inclusive), None means no upper bound
+        embed_model: HuggingFace embedding model (must match indexing model)
+        top_k: Maximum number of results to return (after filtering)
+        
+    Returns:
+        List of dicts with 'content', 'metadata', and 'year' keys, sorted by year
+        
+    Example:
+        # Find events between years 6000-6500
+        results = retrieve_timeline(
+            index_dir=Path("index"),
+            start_year=6000,
+            end_year=6500,
+            top_k=20
+        )
+    """
+    setup_settings(embed_model=embed_model)
+    storage_context = _load_index_storage(index_dir)
+    index = load_index_from_storage(storage_context)
+    
+    # Get all nodes from the docstore
+    all_nodes = list(index.docstore.docs.values())
+    
+    # Pattern to extract year from breadcrumb: [... > Year 6050] or [... > Date 6050-3-14]
+    year_pattern = re.compile(r'\[.*?(?:Year|Date|Years|circa Year)\s+(\d+)', re.IGNORECASE)
+    
+    matching_entries = []
+    for node in all_nodes:
+        text = node.get_content()
+        
+        # Look for year in breadcrumb
+        match = year_pattern.search(text)
+        if match:
+            year = int(match.group(1))
+            
+            # Check if year is in range
+            if start_year is not None and year < start_year:
+                continue
+            if end_year is not None and year > end_year:
+                continue
+            
+            # This entry matches the range
+            matching_entries.append({
+                "content": text,
+                "metadata": {
+                    "path": (node.metadata or {}).get("source_path", "unknown"),
+                    "year": year,
+                },
+                "year": year,
+            })
+    
+    # Sort by year (ascending)
+    matching_entries.sort(key=lambda x: x["year"])
+    
+    # Limit results
+    return matching_entries[:top_k]

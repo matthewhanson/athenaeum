@@ -268,13 +268,13 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
     
     client = OpenAI(api_key=api_key)
     
-    # Define the search tool for the LLM
+    # Define the search tools for the LLM
     tools = [
         {
             "type": "function",
             "function": {
                 "name": "search_knowledge_base",
-                "description": "Search the indexed markdown documents for relevant information. Use this when you need specific information from the knowledge base to answer a question.",
+                "description": "Search the indexed markdown documents for relevant information. Use this when you need specific information about topics, people, places, events, or concepts from the knowledge base.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -289,6 +289,32 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                         }
                     },
                     "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "search_timeline",
+                "description": "Search timeline entries within a specific year range. Use this for queries about time periods, date ranges, or questions asking about 'before', 'after', 'between', or 'during' specific years. This performs numerical filtering and returns results sorted chronologically.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "start_year": {
+                            "type": "integer",
+                            "description": "Starting year (inclusive). Omit for no lower bound (e.g., 'before year X')."
+                        },
+                        "end_year": {
+                            "type": "integer",
+                            "description": "Ending year (inclusive). Omit for no upper bound (e.g., 'after year X')."
+                        },
+                        "limit": {
+                            "type": "integer",
+                            "description": "Maximum number of results to return (default: 10)",
+                            "default": 10
+                        }
+                    },
+                    "required": []
                 }
             }
         }
@@ -416,6 +442,50 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                     "tool_call_id": tool_call.id,
                     "content": json.dumps(results, indent=2)
                 })
+            
+            elif tool_call.function.name == "search_timeline":
+                try:
+                    # Parse arguments
+                    args = json.loads(tool_call.function.arguments)
+                    start_year = args.get("start_year")
+                    end_year = args.get("end_year")
+                    limit = args.get("limit", 10)
+                    
+                    # Track this tool call
+                    all_tool_calls.append({
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": "search_timeline",
+                            "arguments": tool_call.function.arguments,
+                        },
+                    })
+                    
+                    # Execute timeline search
+                    from athenaeum.retriever import retrieve_timeline
+                    timeline_results = retrieve_timeline(
+                        index_dir=index_dir,
+                        start_year=start_year,
+                        end_year=end_year,
+                        top_k=limit
+                    )
+                    
+                    # Add tool result to conversation
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(timeline_results, indent=2)
+                    })
+                except Exception as e:
+                    print(f"Error in timeline search: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Return error to LLM
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps({"error": str(e)}, indent=2)
+                    })
     
     # If we hit max iterations, return what we have
     return {
