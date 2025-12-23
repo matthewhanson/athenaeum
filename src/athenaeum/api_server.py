@@ -10,6 +10,7 @@ Provides REST API endpoints for web UIs and direct HTTP access:
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from pathlib import Path
@@ -409,7 +410,6 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
         for tool_call in assistant_message.tool_calls:
             if tool_call.function.name == "search_knowledge_base":
                 # Parse arguments
-                import json
                 args = json.loads(tool_call.function.arguments)
                 query = args.get("query", "")
                 limit = args.get("limit", 5)
