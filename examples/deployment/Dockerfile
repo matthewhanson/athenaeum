@@ -34,6 +34,11 @@ COPY ${ATHENAEUM_PATH}/src/athenaeum /var/task/athenaeum
 # Copy the index into the image for instant access (no S3 download needed)
 COPY ${INDEX_PATH} /var/task/index
 
+# Copy system prompts if they exist (optional)
+# Example: scribe_system_prompt.md, andraax_system_prompt.md, etc.
+# Set CHAT_SYSTEM_PROMPT_FILE env var to specify default, or use persona parameter in requests
+# To use: create examples/deployment/prompts/ with *_system_prompt.md files
+
 # Copy startup script (no lambda_handler.py needed - index is baked in)
 COPY ${ATHENAEUM_PATH}/examples/deployment/run.sh /var/task/
 RUN chmod +x /var/task/run.sh
@@ -42,6 +47,9 @@ RUN chmod +x /var/task/run.sh
 ENV PORT=8080
 # Use buffered mode instead of response_stream for API Gateway REST API compatibility
 ENV AWS_LWA_INVOKE_MODE=buffered
+# Optional: Set default system prompt file
+# ENV CHAT_SYSTEM_PROMPT_FILE=/var/task/your_default_system_prompt.md
+# ENV CHAT_SYSTEM_PROMPT_DIR=/var/task
 
 # Use ENTRYPOINT for the shell script - CMD doesn't work for shell scripts in Lambda
 ENTRYPOINT ["/var/task/run.sh"]

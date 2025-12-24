@@ -67,6 +67,7 @@ class ChatRequest(BaseModel):
     model: str = "gpt-4o-mini"
     temperature: float = 0.7
     max_tokens: int = 512
+    persona: str | None = None  # Optional: "scribe" (default), "andraax", or custom filename
 
 
 def get_index_dir() -> Path:
@@ -152,6 +153,32 @@ def landing_page(request: Request) -> dict[str, Any]:
 def health_check() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "ok"}
+
+
+@app.get("/personas")
+def list_personas() -> dict[str, Any]:
+    """List available personas from system prompt files."""
+    prompt_dir = Path(os.getenv("CHAT_SYSTEM_PROMPT_DIR", "/var/task"))
+    personas = []
+    
+    # Find all *_system_prompt.md files
+    if prompt_dir.exists():
+        for prompt_file in prompt_dir.glob("*_system_prompt.md"):
+            # Extract persona name (e.g., "andraax" from "andraax_system_prompt.md")
+            persona_name = prompt_file.stem.replace("_system_prompt", "")
+            personas.append({
+                "id": persona_name,
+                "name": persona_name.capitalize(),
+                "file": prompt_file.name,
+            })
+    
+    # Sort personas alphabetically
+    personas.sort(key=lambda x: x["id"])
+    
+    return {
+        "personas": personas,
+        "default": os.getenv("CHAT_SYSTEM_PROMPT_FILE", "").replace("/var/task/", "").replace("_system_prompt.md", "") or None,
+    }
 
 
 @app.get("/models")
@@ -330,21 +357,34 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
         # Fallback base prompt
         base_prompt = "You are a helpful assistant with access to a knowledge base. Use the search_knowledge_base tool to find relevant information when needed."
     
-    # Get application-specific prompt (optional, e.g., Nomikos persona)
-    app_prompt_file = os.getenv("CHAT_SYSTEM_PROMPT_FILE")
-    if app_prompt_file and os.path.exists(app_prompt_file):
-        with open(app_prompt_file, "r") as f:
-            app_prompt = f.read().strip()
-        # Combine: base grounding rules + application-specific persona
+    # Get application-specific prompt based on persona parameter (if provided)
+    app_prompt = None
+    
+    # If persona is specified, try to load that persona file
+    if request.persona:
+        prompt_dir = Path(os.getenv("CHAT_SYSTEM_PROMPT_DIR", "/var/task"))
+        persona_file = prompt_dir / f"{request.persona}_system_prompt.md"
+        if persona_file.exists():
+            with open(persona_file, "r") as f:
+                app_prompt = f.read().strip()
+    
+    # If no persona or persona file not found, fall back to CHAT_SYSTEM_PROMPT_FILE env var
+    if not app_prompt:
+        env_file = os.getenv("CHAT_SYSTEM_PROMPT_FILE")
+        if env_file and os.path.exists(env_file):
+            with open(env_file, "r") as f:
+                app_prompt = f.read().strip()
+    
+    # Final fallback: check for direct environment variable override
+    if not app_prompt:
+        app_prompt = os.getenv("CHAT_SYSTEM_PROMPT")
+    
+    # Combine prompts
+    if app_prompt:
         system_prompt = f"{base_prompt}\n\n{app_prompt}"
     else:
-        # Check for direct environment variable override
-        env_prompt = os.getenv("CHAT_SYSTEM_PROMPT")
-        if env_prompt:
-            system_prompt = f"{base_prompt}\n\n{env_prompt}"
-        else:
-            # Just use base prompt
-            system_prompt = base_prompt
+        # Just use base prompt
+        system_prompt = base_prompt
     
     # Build messages with system prompt
     messages = [{"role": "system", "content": system_prompt}]
