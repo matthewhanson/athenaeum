@@ -300,9 +300,24 @@ Search for context chunks matching a query
 }
 ```
 
+#### `GET /personas`
+
+List available personas (system prompts)
+
+**Response:**
+
+```json
+{
+  "personas": [
+    {"id": "default", "name": "Default", "file": "default_system_prompt.md"}
+  ],
+  "default": "default"
+}
+```
+
 #### `POST /chat`
 
-Generate an answer using RAG
+Generate an answer using RAG with optional persona selection
 
 **Request:**
 
@@ -311,7 +326,8 @@ Generate an answer using RAG
   "messages": [
     {"role": "user", "content": "What are the main topics?"}
   ],
-  "model": "athenaeum-index-retrieval"
+  "model": "athenaeum-index-retrieval",
+  "persona": "default"
 }
 ```
 
@@ -336,6 +352,53 @@ Generate an answer using RAG
 }
 ```
 
+### Personas (System Prompts)
+
+Athenaeum supports dynamic persona selection for the chat endpoint. Personas are system prompts that define how the AI responds to queries.
+
+**Creating Personas:**
+
+1. Create a file following the pattern: `{persona_name}_system_prompt.md`
+2. Place it in your deployment's prompt directory (e.g., `prompts/`)
+3. Copy to Lambda container in your Dockerfile
+4. Reference by name in chat requests
+
+**Example Dockerfile:**
+
+```dockerfile
+# Copy all persona prompts dynamically
+COPY prompts/*_system_prompt.md /var/task/
+
+# Set default persona (optional)
+ENV CHAT_SYSTEM_PROMPT_FILE=/var/task/default_system_prompt.md
+ENV CHAT_SYSTEM_PROMPT_DIR=/var/task
+```
+
+**Using Personas:**
+
+```json
+POST /chat
+{
+  "messages": [{"role": "user", "content": "Tell me about..."}],
+  "persona": "helpful"  // loads helpful_system_prompt.md
+}
+```
+
+**Persona Resolution:**
+
+1. If `persona` parameter provided → load `{persona}_system_prompt.md` from `CHAT_SYSTEM_PROMPT_DIR`
+2. Else use `CHAT_SYSTEM_PROMPT_FILE` environment variable (deployment default)
+3. Else use `CHAT_SYSTEM_PROMPT` environment variable (direct prompt text)
+4. Else use base athenaeum prompt
+
+**Benefits:**
+
+- Switch AI behavior at request time (no redeployment)
+- Support multiple use cases with one deployment
+- Fully extensible - add new personas by adding files
+
+See deployment examples for real-world persona implementations.
+
 ## Project Structure
 
 The codebase is organized by concern with clear separation between indexing, retrieval, and interface layers:
@@ -354,10 +417,11 @@ src/athenaeum/
 │   ├── retrieve_context() - PUBLIC API - Retrieve context chunks
 │   └── _load_index_storage() - Private helper
 │
-├── api_server.py         # FastAPI REST API server (~400 lines)
+├── api_server.py         # FastAPI REST API server (~540 lines)
 │   ├── GET /            - Landing page with API docs
 │   ├── GET /health      - Health check
 │   ├── GET /models      - List models
+│   ├── GET /personas    - List available personas
 │   ├── POST /search     - Search for context (raw vector search)
 │   ├── POST /answer     - Single-search RAG (quick answers)
 │   └── POST /chat       - Multi-search with tool calling (interactive)
