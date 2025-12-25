@@ -3,24 +3,64 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/athenaeum)](https://pypi.org/project/athenaeum/)
 [![Python Version](https://img.shields.io/pypi/pyversions/athenaeum)](https://pypi.org/project/athenaeum/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
-[![Security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
-[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit)](https://github.com/pre-commit/pre-commit)
 
-*Give your LLM a library.*
+*Give your LLM a library card to an RPG world.*
 
-A RAG (Retrieval-Augmented Generation) system built with LlamaIndex and FastAPI that provides a REST API for document retrieval and question answering.
+A specialized RAG (Retrieval-Augmented Generation) system designed for **RPG world knowledge bases**. Built with LlamaIndex and FastAPI, Athenaeum excels at indexing and retrieving campaign settings, timelines, lore, and character information—perfect for game masters, players, and world-builders who want AI assistants with deep knowledge of their fantasy worlds.
+
+**Live Example:** [Nomikos](https://nomikos.vroomfogle.com) - A Shadow World knowledge base powered by Athenaeum, featuring the ancient scholar Andraax who can answer questions about Kulthea's history, geography, and lore. Try asking about the Wars of Dominion, Dragonlords, or the College of Loremasters!
 
 ## Features
 
-- **Markdown-Focused**: Optimized for indexing markdown documents with structure-aware parsing
-- **Vector Search**: FAISS-backed vector search using HuggingFace embeddings
-- **REST API**: Three endpoints for different use cases (search, answer, chat with tool calling)
-- **CLI Tools**: Build indices, query, and run the server
-- **AWS Lambda Deployment**: Serverless deployment with CDK, OAuth authentication, and S3 index storage
-- **Reusable CDK Constructs**: L3 constructs for dependencies layer and API server deployment
-- **Well-Tested**: Comprehensive test suite with 12 passing tests
-- **Clean Architecture**: Logical separation between indexing, retrieval, API, and CLI layers
+### 🎲 RPG-Optimized
+- **⏱️ Timeline Search**: Query events by year ranges ("What happened between SE 1000-2000?")
+- **🔒 Secret Knowledge Management**: Optional classification system to guard sensitive campaign information
+- **🎭 Multi-Persona Support**: Switch between AI characters (wise scholar, neutral librarian, NPC) per request
+- **📜 Markdown-First**: Structure-aware parsing for headings, tables, and nested content
+- **🔍 Semantic Search**: Find relevant lore even when exact terms don't match
+- **🤖 Tool-Calling Chat**: LLM searches multiple times to build comprehensive answers
+
+### 🛠️ Developer-Friendly
+- **⚡ FastAPI Server**: Clean REST API with OpenAPI docs ([API Reference](API.md))
+- **🐳 Lambda Ready**: Container-based serverless deployment with AWS CDK
+- **🧪 Well-Tested**: Comprehensive test suite covering all functionality
+- **🎯 Clean Architecture**: Separation between indexing, retrieval, API, and CLI layers
+- **📦 Reusable Constructs**: L3 CDK constructs for easy deployment
+
+## RPG Use Cases
+
+Athenaeum is purpose-built for RPG campaign settings and world-building. Here's what makes it special:
+
+### Campaign Knowledge Base
+
+**Example: [Nomikos (Shadow World)](https://nomikos.vroomfogle.com)**
+- **30+ years of campaign lore** indexed from markdown source documents
+- **Two AI personas**: Andraax (cryptic ancient scholar who guards secrets) and Scribe (neutral librarian who answers everything)
+- **Timeline search**: Query thousands of years of in-game history ("What happened during the Wars of Dominion?")
+- **Secret classification**: Forbidden topics (artifact creation methods, summoning rituals) are deflected while public lore flows freely
+- **First-person roleplay**: Andraax speaks as a 6000-year-old elf who witnessed the events
+
+### What You Can Build
+
+**Game Master Assistant:**
+- Query NPC backgrounds, faction relationships, and plot threads
+- Timeline search for historical context ("What was happening 100 years before this campaign?")
+- Multiple personas (town guard, sage, suspicious merchant) with different knowledge levels
+
+**Player-Facing Lore Database:**
+- Public persona for common knowledge, secret persona for DM-only information
+- Classification guards spoilers and surprise plot elements
+- Players ask questions in-character and get in-world responses
+
+**World-Building Tool:**
+- Vector search finds thematic connections across your lore
+- Timeline search reveals patterns in your world's history
+- Chat tool-calling lets you explore complex questions across multiple sources
+
+**Campaign Prep:**
+- "What factions are active in this region?"
+- "Show me all events involving the royal family between years 450-600"
+- "What do players know about the artifact?" (uses classification to avoid spoilers)
 
 ## Installation
 
@@ -48,6 +88,83 @@ uv sync
 # Or install in development mode
 uv pip install -e ".[dev]"
 ```
+
+## Quick Start for RPG Projects
+
+Here's how to set up a knowledge base for your RPG campaign:
+
+### 1. Prepare Your Campaign Documents
+
+Organize your lore as markdown files:
+
+```
+my-campaign/
+├── world/
+│   ├── geography.md      # Continents, cities, terrain
+│   ├── history.md        # Timeline with year markers
+│   └── factions.md       # Organizations and groups
+├── characters/
+│   ├── npcs.md          # Non-player characters
+│   └── player-guide.md  # Public information for players
+└── secrets/
+    └── dm-only.md       # Plot twists, secret organizations
+```
+
+**Timeline formatting** (for chronological queries):
+
+```markdown
+## The Great War (Year 1245-1267)
+The kingdom fell into civil war...
+
+## Peace Treaty (Year 1268)
+King Aldric signed the Treaty of...
+```
+
+### 2. Build the Index
+
+```bash
+# Install athenaeum
+pip install athenaeum
+
+# Index your campaign lore
+athenaeum index ./my-campaign --output ./campaign-index
+
+# Start the API server
+athenaeum serve --index ./campaign-index --port 8000
+```
+
+### 3. Query Your World
+
+```bash
+# Semantic search
+curl -X POST http://localhost:8000/chat \
+  -d '{"messages": [{"role": "user", "content": "Tell me about King Aldric"}]}'
+
+# Timeline query
+curl -X POST http://localhost:8000/chat \
+  -d '{"messages": [{"role": "user", "content": "What happened between years 1200-1300?"}]}'
+```
+
+### 4. Add Personas (Optional)
+
+Create `prompts/sage_system_prompt.md`:
+
+```markdown
+You are Eldrin the Sage, keeper of historical records. You speak formally
+and refer to events you've witnessed firsthand. When asked about secret
+information, deflect: "That knowledge is restricted to the Council..."
+```
+
+Then use it:
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -d '{"messages": [{"role": "user", "content": "What do you know of the war?"}], "persona": "sage"}'
+```
+
+### 5. Deploy to Production (Optional)
+
+See [Deployment](#deployment) section for AWS Lambda setup. Cost: ~$1-2/month for typical campaign use.
 
 ## Usage
 
@@ -213,267 +330,49 @@ cdk deploy
 - [`examples/deployment/README.md`](examples/deployment/README.md) - Deployment template and instructions
 - [`examples/README.md`](examples/README.md) - Examples overview
 
-## API Server
+## API Reference
 
-The server provides clean HTTP endpoints for RAG operations:
+Athenaeum provides a FastAPI-based REST API with multiple endpoints for document retrieval and question answering.
 
-### Endpoints
+**Quick Overview:**
+- **`GET /health`** - Health check
+- **`GET /models`** - List available models
+- **`GET /personas`** - List available personas
+- **`POST /search`** - Raw vector search (returns context chunks)
+- **`POST /chat`** - Interactive chat with tool calling (primary endpoint)
 
-#### `GET /`
+**Key Features:**
+- 🎭 **Personas**: Switch AI behavior per-request without redeployment
+- ⏱️ **Timeline Tool**: LLM autonomously searches by year ranges
+- 🔒 **Classification**: Optional pre-RAG filtering for secret knowledge
+- 🤖 **Tool Calling**: LLM can search multiple times to build comprehensive answers
 
-Landing page with API documentation
+**Complete Documentation:** See [API.md](API.md) for detailed endpoint documentation, request/response formats, examples, and configuration.
 
-**Response:**
-
-```json
-{
-  "service": "Athenaeum API Server",
-  "version": "0.1.0",
-  "endpoints": {
-    "/health": "Health check",
-    "/models": "List available models",
-    "/search": "Search for context chunks",
-    "/answer": "Single-search RAG answer",
-    "/chat": "Chat with tool calling (multi-search)"
-  }
-}
-```
-
-#### `GET /health`
-
-Health check endpoint
-
-**Response:**
-
-```json
-{"status": "ok"}
-```
-#### `GET /models`
-
-List available retrieval models
-
-**Response:**
-
-```json
-{
-  "object": "list",
-  "data": [
-    {
-      "id": "athenaeum-index-retrieval",
-      "object": "model",
-      "created": 1234567890,
-      "owned_by": "athenaeum"
-    }
-  ]
-}
-```
-
-#### `POST /search`
-
-Search for context chunks matching a query
-
-**Request:**
-
-```json
-{
-  "query": "What are the key concepts?",
-  "limit": 5
-}
-```
-
-**Response:**
-
-```json
-{
-  "object": "list",
-  "data": [
-    {
-      "id": "doc1.txt",
-      "content": "Context chunk content...",
-      "metadata": {
-        "path": "doc1.txt",
-        "score": 0.95
-      }
-    }
-  ],
-  "model": "athenaeum-index-retrieval"
-}
-```
-
-#### `GET /personas`
-
-List available personas (system prompts)
-
-**Response:**
-
-```json
-{
-  "personas": [
-    {"id": "default", "name": "Default", "file": "default_system_prompt.md"}
-  ],
-  "default": "default"
-}
-```
-
-#### `POST /chat`
-
-Generate an answer using RAG with optional persona selection
-
-**Request:**
-
-```json
-{
-  "messages": [
-    {"role": "user", "content": "What are the main topics?"}
-  ],
-  "model": "athenaeum-index-retrieval",
-  "persona": "default"
-}
-```
-
-**Response:**
-
-```json
-{
-  "id": "chat-abc123",
-  "object": "chat.completion",
-  "created": 1234567890,
-  "model": "athenaeum-index-retrieval",
-  "choices": [
-    {
-      "index": 0,
-      "message": {
-        "role": "assistant",
-        "content": "The main topics are..."
-      },
-      "finish_reason": "stop"
-    }
-  ]
-}
-```
-
-### Personas (System Prompts)
-
-Athenaeum supports dynamic persona selection for the chat endpoint. Personas are system prompts that define how the AI responds to queries.
-
-**Creating Personas:**
-
-1. Create a file following the pattern: `{persona_name}_system_prompt.md`
-2. Place it in your deployment's prompt directory (e.g., `prompts/`)
-3. Copy to Lambda container in your Dockerfile
-4. Reference by name in chat requests
-
-**Example Dockerfile:**
-
-```dockerfile
-# Copy all persona prompts dynamically
-COPY prompts/*_system_prompt.md /var/task/
-
-# Set default persona (optional)
-ENV CHAT_SYSTEM_PROMPT_FILE=/var/task/default_system_prompt.md
-ENV CHAT_SYSTEM_PROMPT_DIR=/var/task
-```
-
-**Using Personas:**
-
-```json
-POST /chat
-{
-  "messages": [{"role": "user", "content": "Tell me about..."}],
-  "persona": "helpful"  // loads helpful_system_prompt.md
-}
-```
-
-**Persona Resolution:**
-
-1. If `persona` parameter provided → load `{persona}_system_prompt.md` from `CHAT_SYSTEM_PROMPT_DIR`
-2. Else use `CHAT_SYSTEM_PROMPT_FILE` environment variable (deployment default)
-3. Else use `CHAT_SYSTEM_PROMPT` environment variable (direct prompt text)
-4. Else use base athenaeum prompt
-
-**Benefits:**
-
-- Switch AI behavior at request time (no redeployment)
-- Support multiple use cases with one deployment
-- Fully extensible - add new personas by adding files
-
-See deployment examples for real-world persona implementations.
-
-## Project Structure
-
-The codebase is organized by concern with clear separation between indexing, retrieval, and interface layers:
-
-```text
-src/athenaeum/
-├── utils.py              # Shared utilities (~22 lines)
-│   └── setup_settings() - Configure LlamaIndex with MarkdownNodeParser
-│
-├── indexer.py            # Markdown indexing (~169 lines)
-│   ├── build_index() - PUBLIC API - Build FAISS index from markdown
-│   └── _validate_paths(), _build_document_reader(), etc. - Private helpers
-│
-├── retriever.py          # Query & retrieval (~109 lines)
-│   ├── query_index() - PUBLIC API - Query with answer generation
-│   ├── retrieve_context() - PUBLIC API - Retrieve context chunks
-│   └── _load_index_storage() - Private helper
-│
-├── api_server.py         # FastAPI REST API server (~540 lines)
-│   ├── GET /            - Landing page with API docs
-│   ├── GET /health      - Health check
-│   ├── GET /models      - List models
-│   ├── GET /personas    - List available personas
-│   ├── POST /search     - Search for context (raw vector search)
-│   ├── POST /answer     - Single-search RAG (quick answers)
-│   └── POST /chat       - Multi-search with tool calling (interactive)
-│
-└── main_cli.py           # Typer CLI (~160 lines)
-    ├── index            - Build markdown index
-    ├── query            - Query index
-    └── serve            - Launch API server
-
-tests/
-├── test_utils.py         # Test shared utilities
-├── test_indexer.py       # Test indexing functions
-├── test_retriever.py     # Test retrieval functions
-├── test_api_server.py    # Test all API endpoints
-└── test_cli.py           # Test CLI commands
-```
-
-### Design Principles
-
-1. **Markdown-First**: Uses LlamaIndex's `MarkdownNodeParser` for structure-aware chunking
-2. **Separation of Concerns**: Indexing (`indexer.py`) vs Retrieval (`retriever.py`)
-3. **Minimal Public API**: Internal helpers prefixed with `_`
-4. **Thin Interface Layers**: CLI and API delegate to business logic
-5. **No Duplication**: Only truly shared code in `utils.py`
-
-## Key Dependencies
-
-- **LlamaIndex**: Vector search, `MarkdownNodeParser`, and RAG orchestration
-- **FastAPI**: HTTP API server
-- **FAISS**: Efficient vector storage and similarity search
-- **HuggingFace Transformers**: Local embeddings (all-MiniLM-L6-v2)
-- **Typer**: CLI framework
-- **Pydantic**: Data validation for API
-
-### Deployment Dependencies (optional)
-
-- **AWS CDK**: Infrastructure as code for Lambda deployment
-- **Lambda Web Adapter**: AWS's official adapter for running web apps on Lambda
-- **python-jose**: JWT/OAuth token validation
+**Interactive Docs:**
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
 
 ## Environment Variables
 
+**Core Configuration:**
+
 ```bash
-# Optional: Override default LLM for answer generation
-export OPENAI_MODEL="gpt-4o-mini"
+# Required for chat/answer endpoints
+export OPENAI_API_KEY="sk-..."
 
-# For API server (set automatically by CLI)
+# Index location (set automatically by CLI)
 export ATHENAEUM_INDEX_DIR="/path/to/index"
-
-# Optional: Custom system prompt for chat/answer endpoints
-export CHAT_SYSTEM_PROMPT="You are a helpful assistant..."
 ```
+
+**Persona Configuration (optional):**
+
+```bash
+export CHAT_SYSTEM_PROMPT_DIR="/var/task"  # Directory with persona files
+export CHAT_SYSTEM_PROMPT_FILE="/var/task/default_system_prompt.md"  # Default persona
+```
+
+See [API.md](API.md#environment-variables) for complete list of environment variables.
 
 ## Markdown Indexing
 

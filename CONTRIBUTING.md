@@ -244,6 +244,69 @@ When working on CDK constructs:
    twine upload dist/*
    ```
 
+## Project Structure
+
+The codebase is organized by concern with clear separation between indexing, retrieval, and interface layers:
+
+```text
+src/athenaeum/
+├── utils.py              # Shared utilities (~22 lines)
+│   └── setup_settings() - Configure LlamaIndex with MarkdownNodeParser
+│
+├── indexer.py            # Markdown indexing (~169 lines)
+│   ├── build_index() - PUBLIC API - Build FAISS index from markdown
+│   └── _validate_paths(), _build_document_reader(), etc. - Private helpers
+│
+├── retriever.py          # Query & retrieval (~109 lines)
+│   ├── query_index() - PUBLIC API - Query with answer generation
+│   ├── retrieve_context() - PUBLIC API - Retrieve context chunks
+│   └── _load_index_storage() - Private helper
+│
+├── api_server.py         # FastAPI REST API server (~540 lines)
+│   ├── GET /            - Landing page with API docs
+│   ├── GET /health      - Health check
+│   ├── GET /models      - List models
+│   ├── GET /personas    - List available personas
+│   ├── POST /search     - Search for context (raw vector search)
+│   ├── POST /answer     - Single-search RAG (quick answers)
+│   └── POST /chat       - Multi-search with tool calling (interactive)
+│
+└── main_cli.py           # Typer CLI (~160 lines)
+    ├── index            - Build markdown index
+    ├── query            - Query index
+    └── serve            - Launch API server
+
+tests/
+├── test_utils.py         # Test shared utilities
+├── test_indexer.py       # Test indexing functions
+├── test_retriever.py     # Test retrieval functions
+├── test_api_server.py    # Test all API endpoints
+└── test_cli.py           # Test CLI commands
+```
+
+## Design Principles
+
+1. **Markdown-First**: Uses LlamaIndex's `MarkdownNodeParser` for structure-aware chunking
+2. **Separation of Concerns**: Indexing (`indexer.py`) vs Retrieval (`retriever.py`)
+3. **Minimal Public API**: Internal helpers prefixed with `_`
+4. **Thin Interface Layers**: CLI and API delegate to business logic
+5. **No Duplication**: Only truly shared code in `utils.py`
+
+## Key Dependencies
+
+- **LlamaIndex**: Vector search, `MarkdownNodeParser`, and RAG orchestration
+- **FastAPI**: HTTP API server
+- **FAISS**: Efficient vector storage and similarity search
+- **HuggingFace Transformers**: Local embeddings (all-MiniLM-L6-v2)
+- **Typer**: CLI framework
+- **Pydantic**: Data validation for API
+
+### Deployment Dependencies (optional)
+
+- **AWS CDK**: Infrastructure as code for Lambda deployment
+- **Lambda Web Adapter**: AWS's official adapter for running web apps on Lambda
+- **python-jose**: JWT/OAuth token validation
+
 ## Getting Help
 
 - Open an issue for bug reports or feature requests
