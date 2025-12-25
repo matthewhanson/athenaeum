@@ -68,6 +68,53 @@ class ChatRequest(BaseModel):
     temperature: float = 0.7
     max_tokens: int = 512
     persona: str | None = None  # Optional: "scribe" (default), "andraax", or custom filename
+    skip_classification: bool = False  # Optional: bypass classification even if enabled
+
+
+def load_classification_prompt(prompt_dir: Path) -> str | None:
+    """Load classification prompt if it exists.
+    
+    Returns the classification prompt text, or None if not found.
+    Classification is opt-in: only active if classification_prompt.txt exists.
+    """
+    classification_file = prompt_dir / "classification_prompt.txt"
+    if classification_file.exists():
+        return classification_file.read_text().strip()
+    return None
+
+
+def classify_question(client, question: str, classification_prompt: str) -> str:
+    """Classify a question using the classification prompt.
+    
+    Args:
+        client: OpenAI client instance
+        question: The user's question to classify
+        classification_prompt: The classification rules/prompt
+    
+    Returns:
+        Classification level: "PUBLIC", "GUARDED", or "FORBIDDEN"
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # Fast and cheap for classification
+            messages=[
+                {"role": "system", "content": classification_prompt},
+                {"role": "user", "content": question}
+            ],
+            temperature=0.0,  # Deterministic classification
+            max_tokens=10,  # Single word response
+        )
+        classification = response.choices[0].message.content.strip().upper()
+        
+        # Validate classification is one of the expected values
+        if classification in ["PUBLIC", "GUARDED", "FORBIDDEN"]:
+            return classification
+        else:
+            # Default to PUBLIC if we get an unexpected response
+            return "PUBLIC"
+    except Exception:
+        # If classification fails, default to PUBLIC (safer than blocking)
+        return "PUBLIC"
 
 
 def get_index_dir() -> Path:
@@ -386,6 +433,33 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
         # Just use base prompt
         system_prompt = base_prompt
     
+    # Check for classification prompt (opt-in feature)
+    classification_level = None
+    prompt_dir = Path(os.getenv("CHAT_SYSTEM_PROMPT_DIR", "/var/task"))
+    classification_prompt = load_classification_prompt(prompt_dir)
+    
+    # Apply classification if enabled and not skipped
+    if classification_prompt and not request.skip_classification:
+        # Get the user's question (last message)
+        user_message = request.messages[-1].content if request.messages else ""
+        classification_level = classify_question(client, user_message, classification_prompt)
+        
+        # Handle FORBIDDEN - no RAG retrieval, deflect
+        if classification_level == "FORBIDDEN":
+            # Add instruction to system prompt to deflect
+            system_prompt += "\n\nIMPORTANT: The user is asking about FORBIDDEN knowledge. Do not search for this information. Politely deflect in character, acknowledging that some knowledge should remain hidden or is beyond your purview."
+            # Remove tools - don't allow any RAG retrieval
+            tools = []
+        
+        # Handle GUARDED - limited RAG retrieval
+        elif classification_level == "GUARDED":
+            # Add instruction to be vague
+            system_prompt += "\n\nIMPORTANT: The user is asking about GUARDED knowledge. You may search, but keep your answer vague and avoid specific details about powers, methods, or secrets. Acknowledge the topic exists but don't elaborate."
+            # Reduce search results for GUARDED topics
+            for tool in tools:
+                if tool["function"]["name"] == "search_knowledge_base":
+                    tool["function"]["parameters"]["properties"]["limit"]["default"] = 2
+    
     # Build messages with system prompt
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend([{"role": msg.role, "content": msg.content} for msg in request.messages])
@@ -429,7 +503,8 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                     "total_tokens": response.usage.total_tokens,
                 },
                 "tool_calls_made": len(all_tool_calls),  # Track how many search calls were made
-                "tool_calls": all_tool_calls  # Include all tool calls made during conversation
+                "tool_calls": all_tool_calls,  # Include all tool calls made during conversation
+                "classification": classification_level  # Include classification level if applied
             }
         
         # Add assistant message with tool calls to conversation
@@ -542,5 +617,6 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
         ],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         "tool_calls_made": len(all_tool_calls),
-        "tool_calls": all_tool_calls
+        "tool_calls": all_tool_calls,
+        "classification": classification_level  # Include classification level if applied
     }
