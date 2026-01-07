@@ -194,7 +194,8 @@ def retrieve_timeline(
     all_nodes = list(index.docstore.docs.values())
     
     # Pattern to extract year from breadcrumb: [... > Year 6050] or [... > Date 6050-3-14]
-    year_pattern = re.compile(r'\[.*?(?:Year|Date|Years|circa Year)\s+(\d+)', re.IGNORECASE)
+    # Also handles ranges: [... > Years 4950 – 6825]
+    year_pattern = re.compile(r'\[.*?(?:Year|Date|Years|circa Year)\s+(\d+)(?:\s*[–—]\s*(\d+))?', re.IGNORECASE)
     
     matching_entries = []
     for node in all_nodes:
@@ -203,22 +204,29 @@ def retrieve_timeline(
         # Look for year in breadcrumb
         match = year_pattern.search(text)
         if match:
-            year = int(match.group(1))
+            year_start = int(match.group(1))
+            year_end = int(match.group(2)) if match.group(2) else year_start
             
-            # Check if year is in range
-            if start_year is not None and year < start_year:
+            # Check if the entry's year range overlaps with the query range
+            # Entry range: [year_start, year_end]
+            # Query range: [start_year, end_year]
+            
+            # Skip if entry is entirely before query range
+            if end_year is not None and year_start > end_year:
                 continue
-            if end_year is not None and year > end_year:
+            # Skip if entry is entirely after query range  
+            if start_year is not None and year_end < start_year:
                 continue
             
-            # This entry matches the range
+            # This entry overlaps with the query range
             matching_entries.append({
                 "content": text,
                 "metadata": {
                     "path": (node.metadata or {}).get("source_path", "unknown"),
-                    "year": year,
+                    "year": year_start,  # Use start year for sorting
+                    "year_end": year_end if year_end != year_start else None,
                 },
-                "year": year,
+                "year": year_start,
             })
     
     # Sort by year (ascending)
