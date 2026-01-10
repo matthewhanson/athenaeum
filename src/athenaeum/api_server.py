@@ -295,7 +295,7 @@ def answer(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> di
     result = query_index(
         index_dir=index_dir,
         question=user_message.content,
-        top_k=10,
+        top_k=20,
         llm_provider="openai",
         llm_model=request.model,
         system_prompt=system_prompt,
@@ -359,8 +359,8 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of results to return (default: 5)",
-                            "default": 5
+                            "description": "Maximum number of results to return (default: 20)",
+                            "default": 20
                         }
                     },
                     "required": ["query"]
@@ -385,8 +385,8 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of results to return (default: 10)",
-                            "default": 10
+                            "description": "Maximum number of results to return (default: 20)",
+                            "default": 20
                         }
                     },
                     "required": []

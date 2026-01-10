@@ -43,7 +43,7 @@ def query_index(
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
     llm_provider: str = "openai",
     llm_model: str = "gpt-4o-mini",
-    top_k: int = 5,
+    top_k: int = 20,
     system_prompt: str | None = None,
 ) -> dict[str, Any]:
     """
@@ -109,7 +109,7 @@ def retrieve_context(
     index_dir: Path,
     question: str,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-    top_k: int = 5,
+    top_k: int = 20,
 ) -> list[dict[str, Any]]:
     """
     Retrieve context chunks for a query without generating an answer.
@@ -153,7 +153,7 @@ def retrieve_timeline(
     start_year: int | None = None,
     end_year: int | None = None,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-    top_k: int = 10,
+    top_k: int = 20,
 ) -> list[dict[str, Any]]:
     """
     Retrieve timeline entries within a year range.
