@@ -20,7 +20,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from athenaeum.retriever import query_index, retrieve_context
+from athenaeum.retriever import query_index, retrieve_context, retrieve_context_hybrid
 
 # Get version from package metadata
 try:
@@ -55,6 +55,7 @@ app.add_middleware(
 class SearchRequest(BaseModel):
     query: str
     limit: int = 5
+    hybrid: bool = False  # Enable hybrid search (vector + BM25)
 
 
 class ChatMessage(BaseModel):
@@ -250,8 +251,24 @@ def search(request: SearchRequest, index_dir: Path = Depends(get_index_dir)) -> 
     Search endpoint for RAG.
 
     This endpoint returns context chunks matching the query for use in RAG applications.
+    
+    Supports two search modes:
+    - Vector search (default): Pure semantic similarity using embeddings
+    - Hybrid search (hybrid=true): Combines vector search with BM25 keyword search
     """
-    contexts = retrieve_context(index_dir=index_dir, question=request.query, top_k=request.limit)
+    # Choose retrieval method based on hybrid flag
+    if request.hybrid:
+        contexts = retrieve_context_hybrid(
+            index_dir=index_dir, 
+            question=request.query, 
+            top_k=request.limit
+        )
+    else:
+        contexts = retrieve_context(
+            index_dir=index_dir, 
+            question=request.query, 
+            top_k=request.limit
+        )
 
     documents = []
     for ctx in contexts:
@@ -361,6 +378,11 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                             "type": "integer",
                             "description": "Maximum number of results to return (default: 20)",
                             "default": 20
+                        },
+                        "hybrid": {
+                            "type": "boolean",
+                            "description": "Enable hybrid search combining vector similarity with BM25 keyword matching. Use hybrid=true for queries with specific terminology or exact name matches (default: false)",
+                            "default": False
                         }
                     },
                     "required": ["query"]
@@ -527,7 +549,8 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                 # Parse arguments
                 args = json.loads(tool_call.function.arguments)
                 query = args.get("query", "")
-                limit = args.get("limit", 5)
+                limit = args.get("limit", 20)
+                hybrid = args.get("hybrid", False)
                 
                 # Track this tool call
                 all_tool_calls.append({
@@ -539,8 +562,11 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                     }
                 })
                 
-                # Execute search
-                contexts = retrieve_context(index_dir=index_dir, question=query, top_k=limit)
+                # Execute search (hybrid or vector-only)
+                if hybrid:
+                    contexts = retrieve_context_hybrid(index_dir=index_dir, question=query, top_k=limit)
+                else:
+                    contexts = retrieve_context(index_dir=index_dir, question=query, top_k=limit)
                 
                 # Format results
                 results = []
