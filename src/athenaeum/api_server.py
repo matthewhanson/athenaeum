@@ -66,8 +66,8 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     model: str = "gpt-4o-mini"
-    temperature: float = 0.7
-    max_tokens: int = 512
+    temperature: float = 0.3  # Lower for factual RAG accuracy
+    max_tokens: int = 4096  # Increased for comprehensive responses
     persona: str | None = None  # Optional: "scribe" (default), "andraax", or custom filename
     skip_classification: bool = False  # Optional: bypass classification even if enabled
 
@@ -76,9 +76,9 @@ def load_classification_prompt(prompt_dir: Path) -> str | None:
     """Load classification prompt if it exists.
     
     Returns the classification prompt text, or None if not found.
-    Classification is opt-in: only active if classification_prompt.txt exists.
+    Classification is opt-in: only active if classification_prompt.md exists.
     """
-    classification_file = prompt_dir / "classification_prompt.txt"
+    classification_file = prompt_dir / "classification_prompt.md"
     if classification_file.exists():
         return classification_file.read_text().strip()
     return None
@@ -175,8 +175,8 @@ def landing_page(request: Request) -> dict[str, Any]:
                 "parameters": {
                     "messages": "Array of chat messages with role and content",
                     "model": "Model name (default: gpt-4o-mini)",
-                    "temperature": "Sampling temperature (default: 0.7)",
-                    "max_tokens": "Maximum tokens in response (default: 512)",
+                    "temperature": "Sampling temperature (default: 0.3 - lower for factual accuracy)",
+                    "max_tokens": "Maximum tokens in response (default: 4096 - ~3000 words)",
                 },
             },
             {
@@ -186,8 +186,8 @@ def landing_page(request: Request) -> dict[str, Any]:
                 "parameters": {
                     "messages": "Array of chat messages with role and content",
                     "model": "Model name (default: gpt-4o-mini)",
-                    "temperature": "Sampling temperature (default: 0.7)",
-                    "max_tokens": "Maximum tokens in response (default: 512)",
+                    "temperature": "Sampling temperature (default: 0.3 - lower for factual accuracy)",
+                    "max_tokens": "Maximum tokens in response (default: 4096 - ~3000 words)",
                 },
                 "note": "LLM autonomously decides when and how many times to search the knowledge base",
             },

@@ -322,9 +322,13 @@ def retrieve_timeline(
     # Get all nodes from the docstore
     all_nodes = list(index.docstore.docs.values())
     
-    # Pattern to extract year from breadcrumb: [... > Year 6050] or [... > Date 6050-3-14]
-    # Also handles ranges: [... > Years 4950 – 6825]
-    year_pattern = re.compile(r'\[.*?(?:Year|Date|Years|circa Year)\s+(\d+)(?:\s*[–—]\s*(\d+))?', re.IGNORECASE)
+    # Pattern to extract year from breadcrumb:
+    # Matches: [... > Year 6050], [... > Date 6050-3-14], [... > Years 4950 – 6825]
+    # Also matches plain numbers in breadcrumbs: [... > 4131], [Timeline > Second Era > 4131]
+    year_pattern = re.compile(
+        r'\[.*?(?:(?:Year|Date|Years|circa Year)\s+)?(\d+)(?:\s*[–—-]\s*(\d+))?\]',
+        re.IGNORECASE
+    )
     
     matching_entries = []
     for node in all_nodes:
