@@ -112,6 +112,7 @@ def retrieve_context(
     question: str,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
     top_k: int = 20,
+    metadata_filters: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Retrieve context chunks for a query without generating an answer.
@@ -123,15 +124,45 @@ def retrieve_context(
         question: The query to search for
         embed_model: HuggingFace embedding model (default: sentence-transformers/all-MiniLM-L6-v2)
         top_k: Number of results to return
+        metadata_filters: Optional filters to apply to metadata
+                         Example: {"entities": {"contains": "Schrek"}}
+                                 {"tags": {"contains": "jerak-ahrenreth"}}
+                                 {"filename": {"equals": "schrek"}}
 
     Returns:
         List of dicts with 'content' and 'metadata' keys
     """
+    from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterOperator
+    
     setup_settings(embed_model=embed_model)
     storage_context = _load_index_storage(index_dir)
     index = load_index_from_storage(storage_context)
 
-    retriever = index.as_retriever(similarity_top_k=top_k)
+    # Build metadata filters if provided
+    filters = None
+    if metadata_filters:
+        filter_list = []
+        for key, condition in metadata_filters.items():
+            if isinstance(condition, dict):
+                if "contains" in condition:
+                    # For list fields like entities, tags, sections
+                    filter_list.append(
+                        MetadataFilter(key=key, value=condition["contains"], operator=FilterOperator.CONTAINS)
+                    )
+                elif "equals" in condition:
+                    filter_list.append(
+                        MetadataFilter(key=key, value=condition["equals"], operator=FilterOperator.EQ)
+                    )
+            else:
+                # Direct value - assume equality
+                filter_list.append(
+                    MetadataFilter(key=key, value=condition, operator=FilterOperator.EQ)
+                )
+        
+        if filter_list:
+            filters = MetadataFilters(filters=filter_list)
+
+    retriever = index.as_retriever(similarity_top_k=top_k, filters=filters)
     nodes = retriever.retrieve(question)
 
     # Extract context and metadata
