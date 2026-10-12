@@ -20,7 +20,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from athenaeum.retriever import query_index, retrieve_context
+from athenaeum.retriever import query_index, retrieve_context, retrieve_context_hybrid
 
 # Get version from package metadata
 try:
@@ -55,6 +55,7 @@ app.add_middleware(
 class SearchRequest(BaseModel):
     query: str
     limit: int = 5
+    hybrid: bool = False  # Enable hybrid search (vector + BM25)
 
 
 class ChatMessage(BaseModel):
@@ -65,8 +66,8 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     model: str = "gpt-4o-mini"
-    temperature: float = 0.7
-    max_tokens: int = 512
+    temperature: float = 0.3  # Lower for factual RAG accuracy
+    max_tokens: int = 4096  # Increased for comprehensive responses
     persona: str | None = None  # Optional: "scribe" (default), "andraax", or custom filename
     skip_classification: bool = False  # Optional: bypass classification even if enabled
 
@@ -75,9 +76,9 @@ def load_classification_prompt(prompt_dir: Path) -> str | None:
     """Load classification prompt if it exists.
     
     Returns the classification prompt text, or None if not found.
-    Classification is opt-in: only active if classification_prompt.txt exists.
+    Classification is opt-in: only active if classification_prompt.md exists.
     """
-    classification_file = prompt_dir / "classification_prompt.txt"
+    classification_file = prompt_dir / "classification_prompt.md"
     if classification_file.exists():
         return classification_file.read_text().strip()
     return None
@@ -174,8 +175,8 @@ def landing_page(request: Request) -> dict[str, Any]:
                 "parameters": {
                     "messages": "Array of chat messages with role and content",
                     "model": "Model name (default: gpt-4o-mini)",
-                    "temperature": "Sampling temperature (default: 0.7)",
-                    "max_tokens": "Maximum tokens in response (default: 512)",
+                    "temperature": "Sampling temperature (default: 0.3 - lower for factual accuracy)",
+                    "max_tokens": "Maximum tokens in response (default: 4096 - ~3000 words)",
                 },
             },
             {
@@ -185,8 +186,8 @@ def landing_page(request: Request) -> dict[str, Any]:
                 "parameters": {
                     "messages": "Array of chat messages with role and content",
                     "model": "Model name (default: gpt-4o-mini)",
-                    "temperature": "Sampling temperature (default: 0.7)",
-                    "max_tokens": "Maximum tokens in response (default: 512)",
+                    "temperature": "Sampling temperature (default: 0.3 - lower for factual accuracy)",
+                    "max_tokens": "Maximum tokens in response (default: 4096 - ~3000 words)",
                 },
                 "note": "LLM autonomously decides when and how many times to search the knowledge base",
             },
@@ -250,8 +251,24 @@ def search(request: SearchRequest, index_dir: Path = Depends(get_index_dir)) -> 
     Search endpoint for RAG.
 
     This endpoint returns context chunks matching the query for use in RAG applications.
+    
+    Supports two search modes:
+    - Vector search (default): Pure semantic similarity using embeddings
+    - Hybrid search (hybrid=true): Combines vector search with BM25 keyword search
     """
-    contexts = retrieve_context(index_dir=index_dir, question=request.query, top_k=request.limit)
+    # Choose retrieval method based on hybrid flag
+    if request.hybrid:
+        contexts = retrieve_context_hybrid(
+            index_dir=index_dir, 
+            question=request.query, 
+            top_k=request.limit
+        )
+    else:
+        contexts = retrieve_context(
+            index_dir=index_dir, 
+            question=request.query, 
+            top_k=request.limit
+        )
 
     documents = []
     for ctx in contexts:
@@ -295,7 +312,7 @@ def answer(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> di
     result = query_index(
         index_dir=index_dir,
         question=user_message.content,
-        top_k=10,
+        top_k=20,
         llm_provider="openai",
         llm_model=request.model,
         system_prompt=system_prompt,
@@ -359,8 +376,13 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of results to return (default: 5)",
-                            "default": 5
+                            "description": "Maximum number of results to return (default: 20)",
+                            "default": 20
+                        },
+                        "hybrid": {
+                            "type": "boolean",
+                            "description": "Enable hybrid search combining vector similarity with BM25 keyword matching. Use hybrid=true for queries with specific terminology or exact name matches (default: false)",
+                            "default": False
                         }
                     },
                     "required": ["query"]
@@ -385,8 +407,8 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                         },
                         "limit": {
                             "type": "integer",
-                            "description": "Maximum number of results to return (default: 10)",
-                            "default": 10
+                            "description": "Maximum number of results to return (default: 20)",
+                            "default": 20
                         }
                     },
                     "required": []
@@ -527,7 +549,8 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                 # Parse arguments
                 args = json.loads(tool_call.function.arguments)
                 query = args.get("query", "")
-                limit = args.get("limit", 5)
+                limit = args.get("limit", 20)
+                hybrid = args.get("hybrid", False)
                 
                 # Track this tool call
                 all_tool_calls.append({
@@ -539,8 +562,11 @@ def chat(request: ChatRequest, index_dir: Path = Depends(get_index_dir)) -> dict
                     }
                 })
                 
-                # Execute search
-                contexts = retrieve_context(index_dir=index_dir, question=query, top_k=limit)
+                # Execute search (hybrid or vector-only)
+                if hybrid:
+                    contexts = retrieve_context_hybrid(index_dir=index_dir, question=query, top_k=limit)
+                else:
+                    contexts = retrieve_context(index_dir=index_dir, question=query, top_k=limit)
                 
                 # Format results
                 results = []

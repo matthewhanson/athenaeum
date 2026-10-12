@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import contextlib
 import re
+import yaml
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,157 @@ from llama_index.core.schema import Document, TextNode
 from llama_index.vector_stores.faiss import FaissVectorStore
 
 from athenaeum.utils import setup_settings
+
+# ============================================================================
+# Metadata Extraction
+# ============================================================================
+
+
+def _extract_yaml_frontmatter(content: str) -> tuple[dict[str, Any], str]:
+    """
+    Extract YAML frontmatter from markdown content.
+    
+    Returns:
+        Tuple of (metadata_dict, content_without_frontmatter)
+    """
+    # Check for YAML frontmatter (--- at start, --- at end)
+    if not content.startswith('---\n'):
+        return {}, content
+    
+    # Find the closing ---
+    end_match = re.search(r'\n---\n', content[4:])
+    if not end_match:
+        return {}, content
+    
+    # Extract and parse YAML
+    yaml_content = content[4:4 + end_match.start()]
+    remaining_content = content[4 + end_match.end():]
+    
+    try:
+        metadata = yaml.safe_load(yaml_content) or {}
+        return metadata, remaining_content
+    except yaml.YAMLError:
+        return {}, content
+
+
+def _extract_section_headers(content: str) -> list[str]:
+    """
+    Extract all markdown headers from content.
+    
+    Returns list of header texts (without # symbols).
+    """
+    headers = []
+    for line in content.split('\n'):
+        match = re.match(r'^(#{1,6})\s+(.+)$', line)
+        if match:
+            headers.append(match.group(2).strip())
+    return headers
+
+
+def _extract_entity_names(content: str) -> list[str]:
+    """
+    Extract likely entity names (proper nouns) from content.
+    
+    Uses heuristics:
+    - Words in Title Case within text (not headers)
+    - Names in parentheses like "Dænkú (Schrek)"
+    - Capitalized sequences of 2+ words
+    
+    Returns deduplicated list of entity names.
+    """
+    entities = set()
+    
+    # Extract from markdown links: [Name](...)
+    link_pattern = r'\[([^\]]+)\]\([^\)]+\)'
+    for match in re.finditer(link_pattern, content):
+        text = match.group(1)
+        if text and text[0].isupper():
+            entities.add(text)
+    
+    # Extract names in parentheses: "Dænkú (Schrek)" or "(The Hand)"
+    paren_pattern = r'\(([A-Z][^\)]{1,30})\)'
+    for match in re.finditer(paren_pattern, content):
+        name = match.group(1)
+        # Skip common non-name patterns
+        if not any(skip in name.lower() for skip in ['the ', 'a ', 'an ', 'see ', 'e.g.']):
+            entities.add(name)
+    
+    # Extract capitalized multi-word phrases (likely proper nouns)
+    # Match 2-4 consecutive Title Case words
+    title_pattern = r'\b([A-ZÆØÅÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜ][a-zæøåàáâãäåèéêëìíîïòóôõöùúûü]+(?:\s+[A-ZÆØÅÀÁÂÃÄÅÈÉÊËÌÍÎÏÒÓÔÕÖÙÚÛÜ][a-zæøåàáâãäåèéêëìíîïòóôõöùúûü]+){1,3})\b'
+    for match in re.finditer(title_pattern, content):
+        name = match.group(1)
+        # Filter out common non-names
+        if len(name) > 3 and not any(skip in name for skip in ['The ', 'This ', 'That ', 'These ', 'Those ', 'When ', 'Where ', 'Which ']):
+            entities.add(name)
+    
+    # Extract bold names: **Name**
+    bold_pattern = r'\*\*([A-Z][^\*]{2,30})\*\*'
+    for match in re.finditer(bold_pattern, content):
+        name = match.group(1).strip()
+        if name and not name.endswith(':'):  # Skip labels like "Note:"
+            entities.add(name)
+    
+    return sorted(list(entities))
+
+
+def _extract_tags_from_metadata(metadata: dict[str, Any]) -> list[str]:
+    """
+    Extract tags from metadata dictionary.
+    
+    Looks for 'tags', 'categories', or 'keywords' fields.
+    """
+    tags = []
+    for key in ['tags', 'categories', 'keywords']:
+        if key in metadata:
+            value = metadata[key]
+            if isinstance(value, list):
+                tags.extend(str(v) for v in value)
+            elif isinstance(value, str):
+                # Handle comma-separated or space-separated
+                tags.extend(re.split(r'[,\s]+', value))
+    return [t.strip() for t in tags if t.strip()]
+
+
+def _enrich_document_metadata(doc: Document) -> Document:
+    """
+    Enrich document with extracted metadata for filtering.
+    
+    Extracts:
+    - YAML frontmatter tags/categories
+    - Section headers
+    - Entity names (proper nouns)
+    - Source file path components
+    """
+    content = doc.text
+    
+    # Extract YAML frontmatter
+    frontmatter, content_without_fm = _extract_yaml_frontmatter(content)
+    
+    # Build enriched metadata
+    enriched_metadata = {
+        **doc.metadata,  # Keep existing metadata (like source_path)
+        "tags": _extract_tags_from_metadata(frontmatter),
+        "sections": _extract_section_headers(content),
+        "entities": _extract_entity_names(content),
+        "title": frontmatter.get('title', ''),
+    }
+    
+    # Extract path components for filtering
+    source_path = doc.metadata.get('source_path', '')
+    if source_path:
+        path = Path(source_path)
+        enriched_metadata["filename"] = path.stem
+        enriched_metadata["path_parts"] = path.parts
+    
+    # Create new document with enriched metadata
+    return Document(
+        text=content,  # Keep original content (with frontmatter)
+        metadata=enriched_metadata,
+        excluded_embed_metadata_keys=doc.excluded_embed_metadata_keys,
+        excluded_llm_metadata_keys=doc.excluded_llm_metadata_keys,
+    )
+
 
 # ============================================================================
 # Hierarchical Context Preservation
@@ -209,19 +361,28 @@ def _build_document_reader(
     )
 
 
-def _create_faiss_storage(index_dir: Path) -> StorageContext:
-    """Create or load a FAISS vector store."""
+def _create_faiss_storage(index_dir: Path, embed_model: str) -> StorageContext:
+    """Create or load a FAISS vector store with appropriate dimensions."""
     index_dir.mkdir(parents=True, exist_ok=True)
     faiss_path = index_dir / "faiss.index"
 
+    # Map embedding model names to their output dimensions
+    embedding_dims = {
+        "sentence-transformers/all-MiniLM-L6-v2": 384,
+        "sentence-transformers/all-mpnet-base-v2": 768,
+        "sentence-transformers/all-MiniLM-L12-v2": 384,
+    }
+    dims = embedding_dims.get(embed_model, 384)
+
+    # If index exists, load it (dimension must match model)
     if faiss_path.exists():
         vector_store = FaissVectorStore.from_persist_path(str(faiss_path))
-    else:
-        # Create a new FAISS index (384 dims for all-MiniLM-L6-v2)
-        faiss_index = faiss.IndexFlatL2(384)
-        vector_store = FaissVectorStore(faiss_index=faiss_index)
+        return StorageContext.from_defaults(vector_store=vector_store, persist_dir=str(index_dir))
 
-    return StorageContext.from_defaults(vector_store=vector_store)
+    # Create new FAISS index with appropriate dimensions
+    faiss_index = faiss.IndexFlatL2(dims)
+    vector_store = FaissVectorStore(faiss_index=faiss_index)
+    return StorageContext.from_defaults(vector_store=vector_store, persist_dir=str(index_dir))
 
 
 def _persist_index(storage_context: StorageContext, index_dir: Path) -> None:
@@ -298,11 +459,15 @@ def build_index(
     if not documents:
         return {"warning": "No documents loaded after filtering."} if return_stats else None
 
+    # Enrich documents with extracted metadata (tags, entities, sections)
+    documents = [_enrich_document_metadata(doc) for doc in documents]
+
     # Inject hierarchical breadcrumbs to preserve heading context
     # This solves the MarkdownNodeParser limitation where parent headings are lost
     documents = _inject_breadcrumbs(documents)
 
-    storage = _create_faiss_storage(index_dir)
+    storage = _create_faiss_storage(index_dir, embed_model)
+    
     index = VectorStoreIndex.from_documents(
         documents,
         storage_context=storage,
@@ -310,5 +475,6 @@ def build_index(
         store_nodes=True,
     )
     _persist_index(storage, index_dir)
+
 
     return _generate_stats(documents, index) if return_stats else None

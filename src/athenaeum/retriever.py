@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from llama_index.core import StorageContext, load_index_from_storage
+from llama_index.core.retrievers import QueryFusionRetriever
+from llama_index.retrievers.bm25 import BM25Retriever
 from llama_index.vector_stores.faiss import FaissVectorStore
 
 from athenaeum.utils import setup_settings
@@ -43,7 +45,7 @@ def query_index(
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
     llm_provider: str = "openai",
     llm_model: str = "gpt-4o-mini",
-    top_k: int = 5,
+    top_k: int = 20,
     system_prompt: str | None = None,
 ) -> dict[str, Any]:
     """
@@ -109,7 +111,8 @@ def retrieve_context(
     index_dir: Path,
     question: str,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-    top_k: int = 5,
+    top_k: int = 20,
+    metadata_filters: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Retrieve context chunks for a query without generating an answer.
@@ -121,16 +124,142 @@ def retrieve_context(
         question: The query to search for
         embed_model: HuggingFace embedding model (default: sentence-transformers/all-MiniLM-L6-v2)
         top_k: Number of results to return
+        metadata_filters: Optional filters to apply to metadata
+                         Example: {"entities": {"contains": "Schrek"}}
+                                 {"tags": {"contains": "jerak-ahrenreth"}}
+                                 {"filename": {"equals": "schrek"}}
 
     Returns:
         List of dicts with 'content' and 'metadata' keys
+    """
+    from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterOperator
+    
+    setup_settings(embed_model=embed_model)
+    storage_context = _load_index_storage(index_dir)
+    index = load_index_from_storage(storage_context)
+
+    # Build metadata filters if provided
+    filters = None
+    if metadata_filters:
+        filter_list = []
+        for key, condition in metadata_filters.items():
+            if isinstance(condition, dict):
+                if "contains" in condition:
+                    # For list fields like entities, tags, sections
+                    filter_list.append(
+                        MetadataFilter(key=key, value=condition["contains"], operator=FilterOperator.CONTAINS)
+                    )
+                elif "equals" in condition:
+                    filter_list.append(
+                        MetadataFilter(key=key, value=condition["equals"], operator=FilterOperator.EQ)
+                    )
+            else:
+                # Direct value - assume equality
+                filter_list.append(
+                    MetadataFilter(key=key, value=condition, operator=FilterOperator.EQ)
+                )
+        
+        if filter_list:
+            filters = MetadataFilters(filters=filter_list)
+
+    retriever = index.as_retriever(similarity_top_k=top_k, filters=filters)
+    nodes = retriever.retrieve(question)
+
+    # Extract context and metadata
+    contexts = []
+    for node in nodes:
+        contexts.append(
+            {
+                "content": node.get_content(),
+                "metadata": {
+                    "path": (node.metadata or {}).get("source_path", "unknown"),
+                    "score": getattr(node, "score", None),
+                },
+            }
+        )
+
+    return contexts
+
+
+def retrieve_context_hybrid(
+    index_dir: Path,
+    question: str,
+    embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    top_k: int = 20,
+    vector_weight: float = 0.5,
+) -> list[dict[str, Any]]:
+    """
+    Retrieve context chunks using hybrid search (vector + BM25 keyword search).
+
+    Combines semantic vector search with traditional keyword search using BM25.
+    Results are fused using Reciprocal Rank Fusion (RRF), which combines rankings
+    from both methods to produce a final ranked list.
+
+    This is particularly effective for:
+    - Queries with specific terminology (e.g., "Twelve Adherents", "Schrek's powers")
+    - Exact name/title matches that might have low semantic similarity
+    - Questions where both semantic meaning AND exact keywords matter
+
+    How it works:
+    1. Vector retriever finds top_k results based on semantic similarity
+    2. BM25 retriever finds top_k results based on keyword matching (TF-IDF style)
+    3. Reciprocal Rank Fusion combines the rankings:
+       - Each result gets score = 1/(rank + 60) from each retriever
+       - Final score is the sum of scores from both retrievers
+       - Results are re-ranked by final score
+    4. Top top_k results from the fused ranking are returned
+
+    The vector_weight parameter isn't directly used in RRF, but both retrievers
+    search for top_k results each, so you get comprehensive coverage.
+
+    Args:
+        index_dir: Path to the index directory
+        question: The query to search for
+        embed_model: HuggingFace embedding model (default: sentence-transformers/all-MiniLM-L6-v2)
+        top_k: Number of results to return from each retriever AND from final fusion
+        vector_weight: Reserved for future use (currently not used by RRF)
+
+    Returns:
+        List of dicts with 'content' and 'metadata' keys, ranked by hybrid fusion
+
+    Example:
+        # Query "Twelve Adherents" will get:
+        # - High BM25 score for exact "Twelve Adherents" text match
+        # - Semantic score for related concepts (members, council, etc.)
+        # - Fusion ranking combines both signals
+        
+        results = retrieve_context_hybrid(
+            index_dir=Path("index"),
+            question="List the Twelve Adherents",
+            top_k=20
+        )
     """
     setup_settings(embed_model=embed_model)
     storage_context = _load_index_storage(index_dir)
     index = load_index_from_storage(storage_context)
 
-    retriever = index.as_retriever(similarity_top_k=top_k)
-    nodes = retriever.retrieve(question)
+    # Create vector retriever (semantic search)
+    vector_retriever = index.as_retriever(similarity_top_k=top_k)
+    
+    # Create BM25 retriever (keyword search)
+    # BM25Retriever needs access to all documents from the docstore
+    bm25_retriever = BM25Retriever.from_defaults(
+        docstore=index.docstore,
+        similarity_top_k=top_k,
+    )
+
+    # Create fusion retriever that combines both
+    # QueryFusionRetriever uses Reciprocal Rank Fusion by default
+    fusion_retriever = QueryFusionRetriever(
+        retrievers=[vector_retriever, bm25_retriever],
+        similarity_top_k=top_k,  # Final number of results after fusion
+        num_queries=1,  # Don't generate query variations, use query as-is
+        mode="reciprocal_rerank",  # Use RRF algorithm
+        use_async=False,  # Synchronous execution
+    )
+
+    # Retrieve using hybrid search
+    nodes = fusion_retriever.retrieve(question)
 
     # Extract context and metadata
     contexts = []
@@ -153,7 +282,7 @@ def retrieve_timeline(
     start_year: int | None = None,
     end_year: int | None = None,
     embed_model: str = "sentence-transformers/all-MiniLM-L6-v2",
-    top_k: int = 10,
+    top_k: int = 20,
 ) -> list[dict[str, Any]]:
     """
     Retrieve timeline entries within a year range.
@@ -193,8 +322,13 @@ def retrieve_timeline(
     # Get all nodes from the docstore
     all_nodes = list(index.docstore.docs.values())
     
-    # Pattern to extract year from breadcrumb: [... > Year 6050] or [... > Date 6050-3-14]
-    year_pattern = re.compile(r'\[.*?(?:Year|Date|Years|circa Year)\s+(\d+)', re.IGNORECASE)
+    # Pattern to extract year from breadcrumb:
+    # Matches: [... > Year 6050], [... > Date 6050-3-14], [... > Years 4950 – 6825]
+    # Also matches plain numbers in breadcrumbs: [... > 4131], [Timeline > Second Era > 4131]
+    year_pattern = re.compile(
+        r'\[.*?(?:(?:Year|Date|Years|circa Year)\s+)?(\d+)(?:\s*[–—-]\s*(\d+))?\]',
+        re.IGNORECASE
+    )
     
     matching_entries = []
     for node in all_nodes:
@@ -203,22 +337,29 @@ def retrieve_timeline(
         # Look for year in breadcrumb
         match = year_pattern.search(text)
         if match:
-            year = int(match.group(1))
+            year_start = int(match.group(1))
+            year_end = int(match.group(2)) if match.group(2) else year_start
             
-            # Check if year is in range
-            if start_year is not None and year < start_year:
+            # Check if the entry's year range overlaps with the query range
+            # Entry range: [year_start, year_end]
+            # Query range: [start_year, end_year]
+            
+            # Skip if entry is entirely before query range
+            if end_year is not None and year_start > end_year:
                 continue
-            if end_year is not None and year > end_year:
+            # Skip if entry is entirely after query range  
+            if start_year is not None and year_end < start_year:
                 continue
             
-            # This entry matches the range
+            # This entry overlaps with the query range
             matching_entries.append({
                 "content": text,
                 "metadata": {
                     "path": (node.metadata or {}).get("source_path", "unknown"),
-                    "year": year,
+                    "year": year_start,  # Use start year for sorting
+                    "year_end": year_end if year_end != year_start else None,
                 },
-                "year": year,
+                "year": year_start,
             })
     
     # Sort by year (ascending)
